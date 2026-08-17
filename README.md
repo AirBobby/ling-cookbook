@@ -40,3 +40,12 @@
 | Ling-3.0-tiny | 单台 NVIDIA DGX Spark | llama.cpp | BF16 (GGUF) | [文档: llama.cpp BF16 部署指南](guide/local-deploy/ling-3.0-tiny/dgx-spark-llamacpp-ling-3-tiny-bf16-gguf.ipynb) |
 | Ling-3.0-tiny | 单台 NVIDIA DGX Spark | SGLang | BF16 | [文档: SGLang BF16 部署指南](guide/local-deploy/ling-3.0-tiny/dgx-spark-sglang-ling-3-tiny-bf16.ipynb) |
 | Ling-3.0-tiny | 单台 NVIDIA DGX Spark | vLLM | BF16 | [文档: vLLM BF16 部署指南](guide/local-deploy/ling-3.0-tiny/dgx-spark-vllm-ling-3-tiny-bf16.ipynb) |
+| Ling-3.0-tiny | Apple Silicon Mac | Ollama | INT4 / FP8 / BF16 | [文档: Ollama 部署指南 (INT4 / FP8 / BF16)](guide/local-deploy/ling-3.0-tiny/mac-ollama-ling-3-tiny.ipynb) |
+
+---
+
+## 构建文档
+
+本项目用 jupytext 维护所有 Jupyter Notebook。所有部署指南及用例源码维护在 `src/<folder>` 中；由 `scripts/compile_notebooks.py` 构建到 `<folder>` 目录。 
+
+修改 `src/` 下的内容后，运行 `python3 scripts/compile_notebooks.py` 即可完成文档构建。不应该直接编辑 Jupyter Notebook 文件。
