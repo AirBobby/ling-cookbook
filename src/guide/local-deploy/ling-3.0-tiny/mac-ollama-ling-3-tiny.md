@@ -83,23 +83,76 @@ limitations under the License.
 
 +++
 
-### 步骤 1: 准备系统环境与编译工具链
+### 步骤 1: 准备系统环境与 Python 虚拟环境
 
-首先确保配置正确的 Xcode 开发者路径并下载 Metal Toolchain 组件，随后通过 Homebrew 安装 Go、CMake、jq 工具，并安装模型下载库：
+为确保后续源码编译与测试顺利进行，我们将准备工作分为构建工具安装、Metal 工具链配置、Python 独立环境创建及依赖库安装四个子步骤：
+
+#### 步骤 1.1: 通过 Homebrew 安装基础构建工具
+
+Ollama 源码编译依赖 Go (1.26+)、CMake (4.4+) 和 jq 工具。如果你的 Mac 尚未安装 Homebrew，可参考 [Homebrew 官网 (brew.sh)](https://brew.sh/) 进行安装：
+
+```{code-cell}
+!brew install go cmake jq
+```
+
+典型运行输出：
+```text
+go 1.26.0 is already installed and up-to-date.
+cmake 4.4.2 is already installed and up-to-date.
+jq 1.7.1 is already installed and up-to-date.
+```
+
++++
+
+#### 步骤 1.2: 配置 Xcode 开发者路径并下载 Metal Toolchain
+
+编译 Metal GPU 加速后端需要完整的 Xcode 开发环境与 Metal Toolchain 组件：
 
 ```{code-cell}
 !sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer
 !xcodebuild -downloadComponent MetalToolchain
-!brew install go cmake jq
-!pip install -U modelscope huggingface_hub --quiet
 ```
 
 典型运行输出：
 ```text
 Component MetalToolchain downloaded successfully.
-go 1.26.0 is already installed and up-to-date.
-cmake 4.4.2 is already installed and up-to-date.
-Successfully installed modelscope huggingface_hub
+```
+
++++
+
+#### 步骤 1.3: 使用 uv 创建独立 Python 虚拟环境
+
+推荐使用现代化 Python 包管理工具 [uv](https://docs.astral.sh/uv/) 创建独立的虚拟环境，以避免全局依赖冲突：
+
+```{code-cell}
+!which uv || brew install uv
+!uv venv .venv --python 3.11
+```
+
+典型运行输出：
+```text
+Using CPython 3.11.9
+Creating virtualenv at: .venv
+Activate with: source .venv/bin/activate
+```
+
++++
+
+#### 步骤 1.4: 使用 uv 安装模型下载与客户端测试依赖
+
+在虚拟环境中安装权重下载工具（ModelScope / Hugging Face）以及用于下游测试验证的 OpenAI 客户端库：
+
+```{code-cell}
+!uv pip install -U modelscope huggingface_hub openai --quiet
+```
+
+典型运行输出：
+```text
+Resolved 28 packages in 420ms
+Installed 28 packages in 65ms
++ huggingface-hub==0.28.1
++ modelscope==1.22.0
++ openai==1.63.0
 ```
 
 +++

@@ -34,16 +34,12 @@ def compile_single(md_path: Path, verbose: bool = True) -> bool:
     target_ipynb = get_target_ipynb_path(md_path)
     target_ipynb.parent.mkdir(parents=True, exist_ok=True)
     
-    # 1. Jupytext 转为 ipynb
+    # 1. Jupytext 转为 ipynb (生成的 Notebook 天然无执行输出)
     cmd = ["jupytext", str(md_path), "--to", "ipynb", "-o", str(target_ipynb)]
     res = subprocess.run(cmd, capture_output=True, text=True)
     if res.returncode != 0:
         print(f"❌ 编译失败: {md_path}\n{res.stderr}", file=sys.stderr)
         return False
-    
-    # 2. 清空输出确保干净交付
-    clear_cmd = ["nb", "output", "clear", str(target_ipynb)]
-    subprocess.run(clear_cmd, capture_output=True, text=True)
     
     if verbose:
         print(f"✅ 编译成功: {md_path.relative_to(ROOT_DIR)} -> {target_ipynb.relative_to(ROOT_DIR)}")
