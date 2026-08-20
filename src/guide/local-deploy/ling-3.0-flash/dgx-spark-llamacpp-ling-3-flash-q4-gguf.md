@@ -41,42 +41,43 @@ kernelspec:
 
 +++
 
-Ling-3.0-flash 是总参数量 124B、单 Token 激活 5.1B MoE 大语言模型。
+Ling-3.0-flash 是总参数量 124B、单 Token 激活 5.1B 的 MoE 大语言模型。
 
 本 Notebook 将采用 `llama.cpp`，在 `NVIDIA DGX Spark` 设备上对其进行 4-bit 量化（Q4_K_M）版本的部署。量化后，模型权重占用压缩至 ~60.5 GB，可在单台 DGX Spark 上提供快速稳定的并发服务。
 
 > [!TIP]
 > **环境准备建议**：
-> - 推荐使用 **Python 3.11** 环境；
-> - 建议通过 **virtualenv (venv)** 创建独立的 Python 虚拟环境（如 `python3.11 -m venv venv && source venv/bin/activate`），以确保依赖隔离与算子兼容性。
+> - 推荐使用 **Python 3.11 / 3.12** 环境；
+> - 推荐使用 **uv** 创建独立的 Python 虚拟环境，以确保依赖隔离与工具链兼容性。
 
 +++
 
-### 步骤 1: 克隆 llama.cpp 仓库并 Checkout 所需分支
+### 步骤 1: 准备 Python 虚拟环境 (uv) 与克隆 llama.cpp 仓库
 
-Ling-3.0-flash 采用了特定的 124B/5.1B MoE 结构与混合注意力机制，当前 llama.cpp 分支尚未合并，暂时需使用 [PR #26608 (`bailingmoe3-support` 分支)](https://github.com/ggml-org/llama.cpp/pull/26608) 提供的算子实现。
+推荐使用 `uv` 创建独立虚拟环境并安装 OpenAI Python 包以用于测试。`llama.cpp` 官方主干已合并对 Ling-3.0 架构的支持，直接克隆主干源码即可：
 
 ```{code-cell}
+!pip install -U uv
+!uv venv --python 3.11 .venv
+!source .venv/bin/activate && uv pip install --upgrade 'openai>=1.52.0,<2.0.0'
 !git clone https://github.com/ggerganov/llama.cpp.git
-!cd llama.cpp && git fetch origin refs/pull/26608/head:bailingmoe3-support && git checkout bailingmoe3-support
 ```
 
 典型输出：
 
 ```text
+Using CPython 3.11 interpreter at: /usr/bin/python3.11
+Creating virtualenv at: .venv
 Cloning into 'llama.cpp'...
 remote: Enumerating objects: 45210, done.
 remote: Counting objects: 100% (210/210), done.
-From https://github.com/ggerganov/llama.cpp
- * [new ref]         refs/pull/26608/head -> bailingmoe3-support
-Switched to a new branch 'bailingmoe3-support'
 ```
 
 +++
 
 ### 步骤 2: 构建 llama.cpp
 
-在 DGX Spark 上，构建上述分支的 llama.cpp 。
+在 DGX Spark 上启用 CUDA 加速编译 `llama.cpp`：
 
 ```{code-cell}
 !cd llama.cpp && cmake -B build -DGGML_CUDA=ON . && cmake --build build --parallel 8
@@ -99,17 +100,13 @@ Switched to a new branch 'bailingmoe3-support'
 
 我们需要先获取模型的原始权重文件。如果你在中国，推荐使用 [ModelScope CLI](https://github.com/modelscope/modelscope/blob/master/README_zh.md) 下载；或者，你也可以使用 [Hugging Face CLI](https://huggingface.co/docs/hub/agents-cli) 下载权重。
 
-该模型在这两个模型托管平台的主页是 [Ling-3.0-flash on ModelScope](https://modelscope.cn/models/inclusionAI/Ling-3.0-flash)
-和 [Ling-3.0-flash on Hugging Face](https://huggingface.co/inclusionAI/Ling-3.0-flash) 。
+该模型在这两个模型托管平台的主页是 [Ling-3.0-flash on ModelScope](https://modelscope.cn/models/inclusionAI/Ling-3.0-flash) 和 [Ling-3.0-flash on Hugging Face](https://huggingface.co/inclusionAI/Ling-3.0-flash) 。
 
 以下以 ModelScope 为例：
 
 ```{code-cell}
-# 1. 安装 ModelScope 工具包
-!pip install modelscope --quiet
-
-# 2. 从 ModelScope 下载官方 Ling-3.0-flash 原始 Safetensors 权重至 ~/models/Ling-3.0-flash
-!modelscope download --model inclusionAI/Ling-3.0-flash --local-dir ~/models/Ling-3.0-flash
+!source .venv/bin/activate && uv pip install -U modelscope
+!source .venv/bin/activate && uv run modelscope download --model inclusionAI/Ling-3.0-flash --local-dir ~/models/Ling-3.0-flash
 ```
 
 典型运行输出：
@@ -118,18 +115,18 @@ Downloading [config.json, model.safetensors.index.json, ...]
 Downloading shard 1/24: 100%|██████████| 4.98G/4.98G [00:15<00:00, 332MB/s]
 ...
 Downloading shard 24/24: 100%|██████████| 3.12G/3.12G [00:09<00:00, 346MB/s]
-Successfully downloaded Ling-3.0-flash to /home/squall/models/Ling-3.0-flash
+Successfully downloaded Ling-3.0-flash to ~/models/Ling-3.0-flash
 ```
 
 +++
 
 ### 步骤 4: 将模型转换为全精度 GGUF 格式
 
-`llama.cpp` 支持使用 GGUF 而不是 SafeTensor 格式的模型。我们需要使用 `convert_hf_to_gguf.py` 转换模型到全精度 bf16 的 GGUF 格式。
+`llama.cpp` 支持使用 GGUF 格式模型。我们安装转换依赖，并使用 `convert_hf_to_gguf.py` 将 Safetensors 权重转换为全精度 BF16 的 GGUF 格式：
 
 ```{code-cell}
-!pip install -r ./llama.cpp/requirements/requirements-convert_hf_to_gguf.txt --quiet
-!python3 llama.cpp/convert_hf_to_gguf.py ~/models/Ling-3.0-flash \
+!source .venv/bin/activate && uv pip install -r ./llama.cpp/requirements/requirements-convert_hf_to_gguf.txt
+!source .venv/bin/activate && python3 llama.cpp/convert_hf_to_gguf.py ~/models/Ling-3.0-flash \
   --outfile ~/models/Ling-3.0-flash-bf16.gguf \
   --outtype bf16 --model-name Ling-3.0-flash
 ```
@@ -198,7 +195,7 @@ llama_server: model loaded successfully, n_ctx = 262144, offload = 100% (GPU)
 
 ### 步骤 7: 验证部署成功并使用模型服务
 
-服务启动后，即可在各种 LLM 客户端中使用（如尚未安装 OpenAI 客户端库，可先执行 `pip install openai`）。下面提供的例子包含：
+服务启动后，即可在各种 LLM 客户端中使用。下面提供的例子包含：
 
 1. 健康检查 - 确认模型加载状态与端点连通性。
 2. 流式 Reasoning 验证 - 测试 `<think>` 正常生成，同时测算 TTFT 与 TPS 性能指标。
@@ -400,3 +397,20 @@ Tool Call ID: gpGiPyVIVoeg7Y4ZWyqKgjfFacOVCAeC
 Function Name: get_weather
 Arguments JSON: {"city":"杭州"}
 ```
+
++++
+
+### 步骤 8: 常见问题与故障排查
+
+1. **GGUF 转换依赖安装报错**：
+   - 现象：运行 `convert_hf_to_gguf.py` 时报 `ModuleNotFoundError`。
+   - 解决：确保在虚拟环境中执行 `uv pip install -r ./llama.cpp/requirements/requirements-convert_hf_to_gguf.txt` 安装转换所需的全部依赖库（如 `torch`, `sentencepiece` 等）。
+
+2. **多并发下上下文显存分配**：
+   - 现象：启动时指定超大上下文（如 `-c 262144`）与较高并发数（如 `-np 4`）时显存溢出。
+   - 解决：可适度减小并发槽位 `-np 2` 或降低上下文长度 `-c 131072`。
+
+3. **端口冲突 (Port 9102 occupied)**：
+   - 现象：`llama-server` 启动报错端口已被占用。
+   - 解决：通过 `lsof -i :9102` 查找并结束进程，或在启动命令中通过 `--port` 修改端口。
+
