@@ -45,11 +45,16 @@ Ling-3.0-flash 是总参数量 124B、单 Token 激活 5.1B 的 MoE 大语言模
 
 本 Notebook 演示如何在 NVIDIA DGX Spark 上，基于 vLLM 官方 ARM64 CUDA 13.0 预编译版本，部署 Ling-3.0-flash 的 FP4 (MXFP4) 量化版本。
 
+> [!TIP]
+> **环境准备建议**：
+> - 推荐使用 **Python 3.12** 环境；
+> - 推荐使用 **uv** 创建独立的 Python 虚拟环境，以确保依赖隔离与算子兼容性。
+
 +++
 
 ### 步骤 1: 准备 Python 3.12 虚拟环境 (uv)
 
-推荐使用 `uv` 创建独立的 Python 3.12 虚拟环境，确保依赖准确；同时安装 `opani` package 用于后续的 OpenAI 兼容接口调用。
+推荐使用 `uv` 创建独立的 Python 3.12 虚拟环境，确保依赖准确；同时安装 `openai` package 用于后续的 OpenAI 兼容接口调用。
 
 ```{code-cell}
 !pip install -U uv
@@ -368,3 +373,19 @@ Tool Call ID: chatcmpl-tool-8ca899170cd1721d
 Function Name: get_weather
 Arguments JSON: {"city": "杭州", "unit": "celsius"}
 ```
+
++++
+
+### 步骤 6: 常见问题与故障排查
+
+1. **Nightly Wheel 下载与网络问题**：
+   - 现象：`uv pip install` 提示找不到匹配的 ARM64 cu130 安装包。
+   - 解决：确保指定 `--extra-index-url https://wheels.vllm.ai/nightly/cu130` 与 `--torch-backend=cu130`。
+
+2. **显存预分配比例调整**：
+   - 现象：启动服务时提示 CUDA Out of Memory 或 KV Cache 分配受限。
+   - 解决：调整 `--gpu-memory-utilization`（例如从 0.90 降至 0.85），为系统和投机解码预留充足动态显存。
+
+3. **端口冲突 (Port 30000 occupied)**：
+   - 现象：服务端启动时报错 `Address already in use`。
+   - 解决：通过 `lsof -i :30000` 查询占用进程并停止，或在启动参数中通过 `--port` 更换服务端口。

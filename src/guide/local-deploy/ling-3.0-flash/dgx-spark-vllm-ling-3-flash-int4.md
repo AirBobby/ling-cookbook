@@ -45,11 +45,16 @@ Ling-3.0-flash 是总参数量 124B、单 Token 激活 5.1B 的 MoE 大语言模
 
 本 Notebook 演示如何在 NVIDIA DGX Spark 上，基于 vLLM 官方 ARM64 CUDA 13.0 预编译版本，部署 Ling-3.0-flash 的 INT4 量化版本。
 
+> [!TIP]
+> **环境准备建议**：
+> - 推荐使用 **Python 3.12** 环境；
+> - 推荐使用 **uv** 创建独立的 Python 虚拟环境，以确保依赖隔离与算子兼容性。
+
 +++
 
 ### 步骤 1: 准备 Python 3.12 虚拟环境 (uv)
 
-推荐使用 `uv` 创建独立的 Python 3.12 虚拟环境，确保依赖准确；同时安装 `opani` package 用于后续的 OpenAI 兼容接口调用。
+推荐使用 `uv` 创建独立的 Python 3.12 虚拟环境，确保依赖准确；同时安装 `openai` package 用于后续的 OpenAI 兼容接口调用。
 
 ```{code-cell}
 !pip install -U uv
@@ -90,7 +95,7 @@ Installed 180 packages in 114ms
 
 +++
 
-### 步骤 3: 下载 Ling-3.0-flash FP4 模型权重
+### 步骤 3: 下载 Ling-3.0-flash INT4 模型权重
 
 从 ModelScope 或 Hugging Face 下载我们发布的 `inclusionAI/Ling-3.0-flash-int4` 模型权重至本地目录。推荐使用 `modelscope` 或 `huggingface` 命令行工具进行下载。以下使用 `modelscope` 示例：
 
@@ -388,3 +393,18 @@ Tool Call ID: chatcmpl-tool-8f0a2d48
 Function Name: get_weather
 Arguments JSON: {"city": "杭州", "unit": "celsius"}
 ```
+
++++
+
+### 步骤 6: 常见问题与故障排查
+
+1. **量化格式与算子支持**：
+   - 说明：Ling-3.0-flash INT4 权重在 vLLM 中通过 `compressed-tensors/marlin` 格式加载。启动时如出现 Marlin 算子加载提示属正常行为。
+
+2. **显存预分配比例微调**：
+   - 现象：若并发请求较高或上下文增长时出现 CUDA Out of Memory。
+   - 解决：微调 `--gpu-memory-utilization`（例如从 0.90 降至 0.85），为系统留出充足显存缓冲。
+
+3. **端口冲突 (Port 30000 occupied)**：
+   - 现象：服务端启动时报错 `Address already in use`。
+   - 解决：通过 `lsof -i :30000` 查询占用进程并停止，或在启动参数中通过 `--port` 更换服务端口。
