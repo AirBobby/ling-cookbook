@@ -47,37 +47,39 @@ Ling-3.0-flash 是总参数量 124B、单 Token 激活 5.1B 的 MoE 大语言模
 
 > [!TIP]
 > **环境准备建议**：
-> - 推荐使用 **Python 3.11** 环境；
-> - 建议通过 **virtualenv (venv)** 创建独立的 Python 虚拟环境（如 `python3.11 -m venv venv && source venv/bin/activate`），以确保依赖隔离与算子兼容性。
+> - 推荐使用 **Python 3.11 / 3.12** 环境；
+> - 推荐使用 **uv** 创建独立的 Python 虚拟环境，以确保依赖隔离与算子兼容性。
 
 +++
 
-### 步骤 1: 克隆 SGLang 仓库并检出 PR #33561 分支
+### 步骤 1: 准备 Python 虚拟环境 (uv) 与克隆 SGLang 仓库
 
-Ling-3.0-flash 采用了特定的 124B/5.1B MoE 结构、KDA 线性注意力与 NextN MTP 投机机制，当前需使用社区 [PR #33561 (`ling3-flash-dspark` 分支)](https://github.com/sgl-project/sglang/pull/33561) 提供的支持代码。
+推荐使用 `uv` 创建独立的 Python 虚拟环境并安装 OpenAI 客户端。同时克隆官方维护的 Ling-3.0 支持分支（`inclusionAI/sglang:ling_v3_support_mxfp4`）：
 
 ```{code-cell}
-!git clone https://github.com/sgl-project/sglang.git
-!cd sglang && git fetch origin refs/pull/33561/head:ling3-flash-dspark && git checkout ling3-flash-dspark
+!pip install -U uv
+!uv venv --python 3.11 .venv
+!source .venv/bin/activate && uv pip install --upgrade 'openai>=1.52.0,<2.0.0'
+!git clone -b ling_v3_support_mxfp4 https://github.com/inclusionAI/sglang.git
 ```
 
 典型运行输出：
 ```text
+Using CPython 3.11 interpreter at: /usr/bin/python3.11
+Creating virtualenv at: .venv
 Cloning into 'sglang'...
 remote: Enumerating objects: 38200, done.
-From https://github.com/sgl-project/sglang
- * [new ref]         refs/pull/33561/head -> ling3-flash-dspark
-Switched to a new branch 'ling3-flash-dspark'
+Switched to a new branch 'ling_v3_support_mxfp4'
 ```
 
 +++
 
 ### 步骤 2: 从源码安装 SGLang 与运行时全量依赖
 
-在当前 Python 环境中以可编辑模式（Editable mode）安装 PR 分支代码及全量依赖库（`[all]`）：
+在虚拟环境中以可编辑模式（Editable mode）安装分支代码及全量依赖库（`[all]`）。设置 `MAX_JOBS=4` 防止多核并发编译导致内存耗尽：
 
 ```{code-cell}
-!pip install -e "./sglang/python[all]"
+!source .venv/bin/activate && MAX_JOBS=4 uv pip install -e "./sglang/python[all]"
 ```
 
 典型运行输出：
@@ -90,15 +92,15 @@ Installing collected packages: ....
 
 ### 步骤 3: 下载 Ling-3.0-flash INT4 模型权重
 
-我们需要先安装模型下载工具。官方直接提供了预量化的 INT4 格式模型权重：
+官方直接提供了预量化的 INT4 格式模型权重：
 - [Ling-3.0-flash-int4 on ModelScope](https://modelscope.cn/models/inclusionAI/Ling-3.0-flash-int4)
 - [Ling-3.0-flash-int4 on Hugging Face](https://huggingface.co/inclusionAI/Ling-3.0-flash-int4)
 
 如果你在中国，推荐使用 [ModelScope CLI](https://github.com/modelscope/modelscope/blob/master/README_zh.md) 下载；或者，你也可以使用 [Hugging Face CLI](https://huggingface.co/docs/hub/agents-cli) 下载权重至本地目录：
 
 ```{code-cell}
-!pip install -U modelscope
-!modelscope download --model inclusionAI/Ling-3.0-flash-int4 --local-dir ~/models/Ling-3.0-flash-int4
+!source .venv/bin/activate && uv pip install -U modelscope
+!source .venv/bin/activate && uv run modelscope download --model inclusionAI/Ling-3.0-flash-int4 --local-dir ~/models/Ling-3.0-flash-int4
 ```
 
 典型运行输出：
@@ -125,7 +127,8 @@ Successfully downloaded Ling-3.0-flash-int4 to ~/models/Ling-3.0-flash-int4
 `sglang.launch_server` 以前台常驻模式运行。如果你直接在 Notebook 中运行下方单元格，Jupyter 将阻塞而无法执行后续单元格的代码。建议你在单独的终端会话中执行启动命令。启动成功后即可使用 Jupyter 进行后续验证。
 
 ```{code-cell}
-!SGLANG_ENABLE_SPEC_V2=1 \
+!source .venv/bin/activate && \
+SGLANG_ENABLE_SPEC_V2=1 \
 SGLANG_ALLOW_OVERWRITE_LONGER_CONTEXT_LEN=1 \
 FLASHINFER_DISABLE_VERSION_CHECK=1 \
 python3 -m sglang.launch_server \
@@ -363,3 +366,19 @@ Tool Call ID: call_87804adb3c954cb4b5dcc266
 Function Name: get_weather
 Arguments JSON: {"city": "杭州", "unit": "celsius"}
 ```
+
++++
+
+### 步骤 6: 常见问题与故障排查
+
+1. **首个请求 JIT 算子编译延迟**：
+   - 现象：首次发送推理请求时 TTFT 耗时较长（可能达数十秒），日志提示 `Triton kernel took X.XX s to compile`。
+   - 说明：此为 Triton JIT 正常现象，从第二个请求开始将直接复用缓存编译的算子，速度将恢复正常。
+
+2. **源码构建阶段内存耗尽 (OOM)**：
+   - 现象：在执行 `MAX_JOBS=4 uv pip install -e "./sglang/python[all]"` 编译 C++/CUDA 扩展时进程被系统强制终止。
+   - 解决：通过 `MAX_JOBS=4` 或 `MAX_JOBS=2` 限制并行编译线程数。
+
+3. **端口冲突 (Port 30000 occupied)**：
+   - 现象：服务端启动时报错 `Address already in use`。
+   - 解决：通过 `lsof -i :30000` 查询占用进程并停止，或在启动参数中修改 `--port`。
