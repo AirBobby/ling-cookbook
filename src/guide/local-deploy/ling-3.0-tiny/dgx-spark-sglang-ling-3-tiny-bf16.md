@@ -48,42 +48,38 @@ Ling-3.0-tiny 是总参数量 7.9B、单 Token 激活仅 1.3B 的轻量型 Spars
 > [!TIP]
 > **环境准备建议**：
 > - 推荐使用 **Python 3.11 / 3.12** 环境；
-> - 建议通过 **virtualenv (venv)** 创建独立的 Python 虚拟环境，以确保依赖隔离与算子兼容性。
+> - 推荐使用 **uv** 创建独立的 Python 虚拟环境，以确保依赖隔离与算子兼容性。
 
 +++
 
-### 步骤 1: 克隆 SGLang 仓库并检出 PR #33561 分支
+### 步骤 1: 准备 Python 虚拟环境 (uv) 与克隆 SGLang 仓库
 
-Ling-3.0-tiny 采用了特定的 MoE 结构与 KDA 混合注意力机制，当前推荐使用社区 [PR #33561 (`ling3-flash-dspark` 分支)](https://github.com/sgl-project/sglang/pull/33561) 提供的原生支持代码。
+推荐使用 `uv` 创建独立的 Python 虚拟环境并安装 OpenAI 客户端。同时克隆官方维护的 Ling-3.0 支持分支（`inclusionAI/sglang:ling_v3_support_mxfp4`）：
 
 ```{code-cell}
-!git clone https://github.com/sgl-project/sglang.git 2>/dev/null || true
-!cd sglang && git fetch origin refs/pull/33561/head:ling3-flash-dspark && git checkout ling3-flash-dspark
+!pip install -U uv
+!uv venv --python 3.11 .venv
+!source .venv/bin/activate && uv pip install --upgrade 'openai>=1.52.0,<2.0.0'
+!git clone -b ling_v3_support_mxfp4 https://github.com/inclusionAI/sglang.git
 ```
 
 典型运行输出：
 ```text
+Using CPython 3.11 interpreter at: /usr/bin/python3.11
+Creating virtualenv at: .venv
 Cloning into 'sglang'...
 remote: Enumerating objects: 38200, done.
-From https://github.com/sgl-project/sglang
- * [new ref]         refs/pull/33561/head -> ling3-flash-dspark
-Switched to a new branch 'ling3-flash-dspark'
+Switched to a new branch 'ling_v3_support_mxfp4'
 ```
 
 +++
 
 ### 步骤 2: 从源码安装 SGLang 与运行时全量依赖
 
-在当前 Python 环境中安装 PR 分支代码及全量依赖库（`[all]`）。
-
-> **提示**：构建 Rust 扩展依赖（如 `outlines_core`）时若提示缺少 OpenSSL 头文件，可提前配置 `OPENSSL_DIR` 与 `PKG_CONFIG_PATH` 指向已有 Conda/系统 OpenSSL 路径。
+在虚拟环境中以可编辑模式安装分支代码及全量依赖库（`[all]`）。设置 `MAX_JOBS=4` 防止多核并发编译导致内存耗尽：
 
 ```{code-cell}
-# 可选：指定 OpenSSL 路径以支持 outlines_core 编译
-# !export OPENSSL_DIR=/home/squall/miniconda3/envs/sglang
-# !export PKG_CONFIG_PATH=/home/squall/miniconda3/envs/sglang/lib/pkgconfig:$PKG_CONFIG_PATH
-
-!pip install -e "./sglang/python[all]" --quiet
+!source .venv/bin/activate && MAX_JOBS=4 uv pip install -e "./sglang/python[all]" --quiet
 ```
 
 典型运行输出：
@@ -101,11 +97,11 @@ Successfully installed sglang
 - [Ling-3.0-tiny on ModelScope](https://modelscope.cn/models/inclusionAI/Ling-3.0-tiny)
 - [Ling-3.0-tiny on Hugging Face](https://huggingface.co/inclusionAI/Ling-3.0-tiny)
 
-推荐使用 [ModelScope CLI](https://github.com/modelscope/modelscope/blob/master/README_zh.md) 一键下载至本地目录 `~/models/Ling-3.0-tiny`（共 4 个分卷约 15.8 GB，通常 1~2 分钟内完成）：
+推荐使用 ModelScope CLI 一键下载至本地目录 `~/models/Ling-3.0-tiny`（共 4 个分卷约 15.8 GB，通常 1~2 分钟内完成）：
 
 ```{code-cell}
-!pip install -U modelscope --quiet
-!modelscope download --model inclusionAI/Ling-3.0-tiny --local-dir ~/models/Ling-3.0-tiny
+!source .venv/bin/activate && uv pip install -U modelscope --quiet
+!source .venv/bin/activate && uv run modelscope download --model inclusionAI/Ling-3.0-tiny --local-dir ~/models/Ling-3.0-tiny
 ```
 
 典型运行输出：
@@ -137,7 +133,36 @@ Successfully downloaded Ling-3.0-tiny to ~/models/Ling-3.0-tiny
 `sglang.launch_server` 以前台常驻模式运行。如果你直接在 Notebook 中运行下方单元格，Jupyter 将阻塞而无法执行后续单元格的代码。建议你在单独的终端会话中执行启动命令。启动成功后即可使用 Jupyter 进行后续验证。
 
 ```{code-cell}
-!SGLANG_ALLOW_OVERWRITE_LONGER_CONTEXT_LEN=1 FLASHINFER_DISABLE_VERSION_CHECK=1 python3 -m sglang.launch_server   --model-path ~/models/Ling-3.0-tiny   --served-model-name Ling-3.0-tiny-bf16   --trust-remote-code   --dtype bfloat16   --tp-size 1   --host 0.0.0.0   --port 30000   --api-key sk-ling-cookbook-test   --mem-fraction-static 0.35   --max-running-requests 16   --max-mamba-cache-size 64   --chunked-prefill-size 8192   --page-size 64   --context-length 131072   --cuda-graph-backend-decode full   --cuda-graph-max-bs-decode 2   --cuda-graph-bs-decode 1 2   --cuda-graph-backend-prefill disabled   --random-seed 308534008   --reasoning-parser ling3   --tool-call-parser ling3   --attention-backend flashinfer   --disable-flashinfer-autotune   --moe-runner-backend triton   --enable-fp32-lm-head   --json-model-override-args '{"num_nextn_predict_layers":0}'
+!source .venv/bin/activate && \
+SGLANG_ALLOW_OVERWRITE_LONGER_CONTEXT_LEN=1 \
+FLASHINFER_DISABLE_VERSION_CHECK=1 \
+python3 -m sglang.launch_server \
+  --model-path ~/models/Ling-3.0-tiny \
+  --served-model-name Ling-3.0-tiny-bf16 \
+  --trust-remote-code \
+  --dtype bfloat16 \
+  --tp-size 1 \
+  --host 0.0.0.0 \
+  --port 30000 \
+  --api-key sk-ling-cookbook-test \
+  --mem-fraction-static 0.35 \
+  --max-running-requests 16 \
+  --max-mamba-cache-size 64 \
+  --chunked-prefill-size 8192 \
+  --page-size 64 \
+  --context-length 131072 \
+  --cuda-graph-backend-decode full \
+  --cuda-graph-max-bs-decode 2 \
+  --cuda-graph-bs-decode 1 2 \
+  --cuda-graph-backend-prefill disabled \
+  --random-seed 308534008 \
+  --reasoning-parser ling3 \
+  --tool-call-parser ling3 \
+  --attention-backend flashinfer \
+  --disable-flashinfer-autotune \
+  --moe-runner-backend triton \
+  --enable-fp32-lm-head \
+  --json-model-override-args '{"num_nextn_predict_layers":0}'
 ```
 
 服务端就绪时的典型日志：
@@ -410,15 +435,17 @@ Arguments JSON: {"city": "杭州", "unit": "celsius"}
 
 +++
 
-### 常见问题
+### 步骤 6: 常见问题与故障排查
 
-1. `sglang.serve` 时 MLA 断言报错 (`AssertionError: K must be a multiple of 1024, got 1536`)
+1. **`sglang.serve` 时 MLA 断言报错 (`AssertionError: K must be a multiple of 1024, got 1536`)**：
    - 原因：Blackwell 架构上 SGLang 默认将 MLA Fused A GEMM 路由至 CuteDSL 后端，而 CuteDSL 底层要求维度 K 必须是 1024 整数倍，Ling-3.0-tiny 的 K=1536 会触发断言。
-   - 修复：修改 `sglang/python/sglang/kernels/ops/gemm/fused_a_gemm.py` 中 `fused_a_gemm_weight_eligible` 的检查，将 `layer.weight.shape[1] % 256 == 0` 修正为 `layer.weight.shape[1] % 1024 == 0`，使小模型安全回退至标准 PyTorch/CUDA GEMM 算子。
+   - 修复：修改 `sglang/python/sglang/kernels/ops/gemm/fused_a_gemm.py` 中 `fused_a_gemm_weight_eligible` 的检查，将 `layer.weight.shape[1] % 256 == 0` 修正为 `layer.weight.shape[1] % 1024 == 0`，使小模型安全回退至标准 PyTorch/CUDA GEMM 算子（官方分支已包含该修复）。
 
-2. `pip install` 源码构建依赖时报错 (`Could not find openssl via pkg-config`)
-   - 构建 `outlines_core` 时若缺少 OpenSSL，可配置环境变量指向 Conda 环境：`export OPENSSL_DIR=/home/squall/miniconda3/envs/sglang` 与 `export PKG_CONFIG_PATH=/home/squall/miniconda3/envs/sglang/lib/pkgconfig:$PKG_CONFIG_PATH`。
+2. **源码构建阶段内存耗尽 (OOM)**：
+   - 现象：在编译 C++/CUDA 扩展时进程被系统终止。
+   - 解决：通过 `MAX_JOBS=4` 环境变量限制并发编译线程数。
 
-```{code-cell}
+3. **端口冲突 (Port 30000 occupied)**：
+   - 现象：服务端启动时报错 `Address already in use`。
+   - 解决：通过 `lsof -i :30000` 查询占用进程并停止，或在启动参数中修改 `--port`。
 
-```

@@ -106,27 +106,34 @@ jq 1.7.1 is already installed and up-to-date.
 
 #### 步骤 1.2: 配置 Xcode 开发者路径并下载 Metal Toolchain
 
-编译 Metal GPU 加速后端需要完整的 Xcode 开发环境与 Metal Toolchain 组件：
+编译 Metal GPU 加速后端需要完整的 **Xcode.app** 开发环境（从 Mac App Store 或 Apple Developer Portal 安装）与 Metal Toolchain 组件。在切换路径后，需先执行 `-runFirstLaunch` 完成初始化系统包安装，再下载 Metal Toolchain：
+
+> [!NOTE]
+> 系统默认自带的轻量级 `Command Line Tools` (`/Library/Developer/CommandLineTools`) 不包含独立 Metal 离线编译器。若未安装完整 Xcode.app，执行下方切换命令会提示 `invalid developer directory`。请先安装 Xcode.app 并执行 `sudo xcodebuild -runFirstLaunch`。
 
 ```{code-cell}
 !sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer
-!xcodebuild -downloadComponent MetalToolchain
+!sudo xcodebuild -runFirstLaunch
+!sudo xcodebuild -downloadComponent MetalToolchain
 ```
 
 典型运行输出：
 ```text
-Component MetalToolchain downloaded successfully.
+Beginning asset download...
+Downloaded asset to: /System/Library/AssetsV2/com_apple_MobileAsset_MetalToolchain/5f4a441a6d0a11f2e9b28c67384263afe92320f7.asset/AssetData/Restore/022-21788-058.dmg
+Done downloading: Metal Toolchain 17F109.
 ```
 
 +++
 
-#### 步骤 1.3: 使用 uv 创建独立 Python 虚拟环境
+#### 步骤 1.3: 使用 uv 创建并激活独立 Python 虚拟环境
 
 推荐使用现代化 Python 包管理工具 [uv](https://docs.astral.sh/uv/) 创建独立的虚拟环境，以避免全局依赖冲突：
 
 ```{code-cell}
-!which uv || brew install uv
+!pip install -U uv
 !uv venv .venv --python 3.11
+!source .venv/bin/activate
 ```
 
 典型运行输出：
@@ -140,10 +147,10 @@ Activate with: source .venv/bin/activate
 
 #### 步骤 1.4: 使用 uv 安装模型下载与客户端测试依赖
 
-在虚拟环境中安装权重下载工具（ModelScope / Hugging Face）以及用于下游测试验证的 OpenAI 客户端库：
+激活虚拟环境并安装权重下载工具（ModelScope / Hugging Face）以及用于下游测试验证的 OpenAI 客户端库：
 
 ```{code-cell}
-!uv pip install -U modelscope huggingface_hub openai --quiet
+!source .venv/bin/activate && uv pip install -U modelscope huggingface_hub openai
 ```
 
 典型运行输出：
@@ -162,7 +169,7 @@ Installed 28 packages in 65ms
 Ling-3.0-tiny 的 `bailing_hybrid` 架构支持目前由社区分支 [PR #17643](https://github.com/ollama/ollama/pull/17643) 提供，需检出 `bailing-moe-v3` 分支：
 
 ```{code-cell}
-!git clone https://github.com/ollama/ollama.git 2>/dev/null || (cd ollama && git fetch origin)
+!git clone https://github.com/ollama/ollama.git
 !cd ollama && git fetch origin refs/pull/17643/head:bailing-moe-v3 && git checkout bailing-moe-v3
 ```
 
@@ -213,7 +220,7 @@ Switched to branch 'bailing-moe-v3'
 
 ```{code-cell}
 # 1. 下载 FP8 权重
-!modelscope download --model inclusionAI/Ling-3.0-tiny-fp8 --local_dir ~/models/Ling-3.0-tiny-fp8
+!source .venv/bin/activate && modelscope download --model inclusionAI/Ling-3.0-tiny-fp8 --local-dir ~/models/Ling-3.0-tiny-fp8
 
 # 2. 生成 Modelfile 并导入 Ollama
 import os
@@ -244,7 +251,7 @@ success
 
 ```{code-cell}
 # 1. 下载 INT4 权重
-!modelscope download --model inclusionAI/Ling-3.0-tiny-int4 --local_dir ~/models/Ling-3.0-tiny-int4
+!source .venv/bin/activate && modelscope download --model inclusionAI/Ling-3.0-tiny-int4 --local-dir ~/models/Ling-3.0-tiny-int4
 
 # 2. 生成 Modelfile 并导入 Ollama
 import os
@@ -275,7 +282,7 @@ success
 
 ```{code-cell}
 # 1. 下载 BF16 全精度权重
-!modelscope download --model inclusionAI/Ling-3.0-tiny --local_dir ~/models/Ling-3.0-tiny
+!source .venv/bin/activate && modelscope download --model inclusionAI/Ling-3.0-tiny --local-dir ~/models/Ling-3.0-tiny
 
 # 2. 生成 Modelfile 并导入 Ollama
 import os
@@ -543,11 +550,15 @@ Arguments JSON: {"city":"杭州"}
 
 +++
 
-### 步骤 7: 常见问题与故障排查 (Troubleshooting)
+### 步骤 7: 常见问题与故障排查
 
-1. **`xcode-select` 或 MetalToolchain 缺失导致 CMake 报错**
-   - **现象**：CMake 提示找不到 Metal 编译器或 `MetalToolchain` 缺失。
-   - **解决**：确保运行了 `sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer` 并执行 `xcodebuild -downloadComponent MetalToolchain`。
+1. **`xcode-select: error: invalid developer directory '/Applications/Xcode.app/Contents/Developer'` 或 Metal 编译器缺失**
+   - **现象**：执行 `xcode-select --switch` 报错目录无效，或 CMake 提示找不到 Metal 编译器 / `MetalToolchain` 缺失。
+   - **原因**：当前 Mac 仅安装了轻量级 `Command Line Tools` (`/Library/Developer/CommandLineTools`)，缺少包含 Metal 离线编译器的完整 `Xcode.app`。
+   - **解决**：从 Mac App Store 或 [Apple Developer Portal](https://developer.apple.com/download/all/) 下载并安装完整 Xcode.app 后，依次执行：
+     1. `sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer`
+     2. `sudo xcodebuild -runFirstLaunch`（完成初始化系统组件安装）
+     3. `xcodebuild -downloadComponent MetalToolchain`
 
 2. **导入 FP8 / INT4 权重时报错找不到 MLX 动态库**
    - **现象**：`./ollama create` 时报错找不到 MLX 相关 `.dylib`。

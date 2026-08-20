@@ -47,32 +47,36 @@ kernelspec:
 
 > [!TIP]
 > **环境准备建议**：
-> - 推荐使用 **Python 3.11** 环境；
-> - 建议通过 **virtualenv (venv)** 创建独立的 Python 虚拟环境（如 `python3.11 -m venv venv && source venv/bin/activate`），以确保依赖隔离与算子兼容性。
+> - 推荐使用 **Python 3.11 / 3.12** 环境；
+> - 推荐使用 **uv** 创建独立的 Python 虚拟环境，以确保依赖隔离与工具链兼容性。
 
 +++
 
-### 步骤 1: 克隆 llama.cpp 仓库并切换至 Bailing MoE V3 分支
+### 步骤 1: 准备 Python 虚拟环境 (uv) 与克隆 llama.cpp 仓库
 
-Ling-3.0-tiny 采用了特定的 MoE 结构与混合注意力机制，目前基于社区分支 [PR #26608 (`bailingmoe3-support` 分支)](https://github.com/ggml-org/llama.cpp/pull/26608) 运行：
+推荐使用 `uv` 创建独立虚拟环境并安装 OpenAI 客户端。`llama.cpp` 已合并对 Ling-3.0 架构的支持，直接克隆主干源码即可：
 
 ```{code-cell}
+!pip install -U uv
+!uv venv --python 3.11 .venv
+!source .venv/bin/activate && uv pip install --upgrade 'openai>=1.52.0,<2.0.0' requests
 !git clone https://github.com/ggerganov/llama.cpp.git
-!cd llama.cpp && git fetch origin refs/pull/26608/head:bailingmoe3-support && git checkout bailingmoe3-support
 ```
 
 典型输出：
 ```text
-From https://github.com/ggerganov/llama.cpp
- * [new ref]         refs/pull/26608/head -> bailingmoe3-support
-Switched to branch 'bailingmoe3-support'
+Using CPython 3.11 interpreter at: /usr/bin/python3.11
+Creating virtualenv at: .venv
+Cloning into 'llama.cpp'...
+remote: Enumerating objects: 45210, done.
+remote: Counting objects: 100% (210/210), done.
 ```
 
 +++
 
 ### 步骤 2: 构建 llama.cpp (开启 CUDA 加速)
 
-在 DGX Spark 上编译上述分支，启用 CUDA 硬件加速：
+在 DGX Spark 上编译 `llama.cpp` 主干，启用 CUDA 硬件加速：
 
 ```{code-cell}
 !cd llama.cpp && cmake -B build -DGGML_CUDA=ON . && cmake --build build --parallel 8
@@ -92,11 +96,8 @@ Switched to branch 'bailingmoe3-support'
 直接使用 `modelscope` CLI 下载官方 Safetensors 权重至本地目录 `~/models/Ling-3.0-tiny`（共约 15.8 GB，通常 1~2 分钟内完成）：
 
 ```{code-cell}
-# 1. 安装 ModelScope 工具包
-!pip install modelscope --quiet
-
-# 2. 一键下载官方 Ling-3.0-tiny 原始 Safetensors 权重
-!modelscope download --model inclusionAI/Ling-3.0-tiny --local_dir ~/models/Ling-3.0-tiny
+!source .venv/bin/activate && uv pip install -U modelscope --quiet
+!source .venv/bin/activate && uv run modelscope download --model inclusionAI/Ling-3.0-tiny --local-dir ~/models/Ling-3.0-tiny
 ```
 
 典型输出：
@@ -115,8 +116,8 @@ Downloading shard 4/4: 100%|██████████| 1.02G/1.02G [00:02<0
 使用 `convert_hf_to_gguf.py` 转换模型。由于 Tiny 模型体积轻量，**转换完成后可直接用于全精度推理，完全无需耗时的 `llama-quantize` 二次量化**：
 
 ```{code-cell}
-!pip install -r ./llama.cpp/requirements/requirements-convert_hf_to_gguf.txt --quiet
-!python3 ./llama.cpp/convert_hf_to_gguf.py ~/models/Ling-3.0-tiny \
+!source .venv/bin/activate && uv pip install -r ./llama.cpp/requirements/requirements-convert_hf_to_gguf.txt --quiet
+!source .venv/bin/activate && python3 ./llama.cpp/convert_hf_to_gguf.py ~/models/Ling-3.0-tiny \
   --outfile ~/models/Ling-3.0-tiny-bf16.gguf \
   --outtype bf16 --model-name Ling-3.0-tiny
 ```
@@ -348,3 +349,16 @@ Tool Call ID: pa6MtfWs1LLBkrFJpXaFnjlXKxU7oTi2
 Function Name: get_weather
 Arguments JSON: {"city":"杭州"}
 ```
+
++++
+
+### 步骤 7: 常见问题与故障排查
+
+1. **GGUF 转换依赖安装**：
+   - 现象：执行 `convert_hf_to_gguf.py` 提示找不到模块。
+   - 解决：通过 `uv pip install -r ./llama.cpp/requirements/requirements-convert_hf_to_gguf.txt` 安装所需依赖。
+
+2. **端口冲突 (Port 9102 occupied)**：
+   - 现象：`llama-server` 启动报错端口已被占用。
+   - 解决：通过 `lsof -i :9102` 查找并结束进程，或在启动命令中通过 `--port` 修改端口。
+

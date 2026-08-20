@@ -45,6 +45,11 @@ Ling-3.0-tiny 是总参数量 7.9B、单 Token 激活仅 1.3B 的轻量型 Spars
 
 本 Notebook 介绍如何在 NVIDIA DGX Spark 上，基于 vLLM 进行全精度 BF16 服务部署。
 
+> [!TIP]
+> **环境准备建议**：
+> - 推荐使用 **Python 3.12** 环境；
+> - 推荐使用 **uv** 创建独立的 Python 虚拟环境，以确保依赖隔离与算子兼容性。
+
 +++
 
 ### 步骤 1: 准备 Python 3.12 虚拟环境 (uv)
@@ -99,7 +104,7 @@ Installed 180 packages in 120ms
 
 ```{code-cell}
 !uv pip install -U modelscope --quiet
-!uv run modelscope download --model inclusionAI/Ling-3.0-tiny --local_dir ~/models/Ling-3.0-tiny
+!uv run modelscope download --model inclusionAI/Ling-3.0-tiny --local-dir ~/models/Ling-3.0-tiny
 ```
 
 典型运行输出：
@@ -403,3 +408,15 @@ Tool Call ID: call_87804adb3c954cb4b5dcc266
 Function Name: get_weather
 Arguments JSON: {"city": "杭州", "unit": "celsius"}
 ```
+
++++
+
+### 步骤 6: 常见问题与故障排查
+
+1. **显存预分配与 128K 上下文**：
+   - 说明：Ling-3.0-tiny BF16 权重仅占 ~16 GiB，默认 `--gpu-memory-utilization 0.35`（约 42 GiB）即可支持完整的 128K 上下文与多路并发。如需更大并发可上调此比例。
+
+2. **端口冲突 (Port 30000 occupied)**：
+   - 现象：服务端启动时报错 `Address already in use`。
+   - 解决：通过 `lsof -i :30000` 查询占用进程并停止，或在启动参数中修改 `--port`。
+
