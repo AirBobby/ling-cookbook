@@ -25,14 +25,14 @@
 
 #### Ling-3.0-flash
 
-| 模型 | 设备                  | 框架 | 量化 | 链接 |
-| :--- |:----------------------| :--- | :--- | :--- |
-| Ling-3.0-flash | 单台 NVIDIA DGX Spark | SGLang | W4A8 (Humming + 在线 FP8 LM Head) | [文档: SGLang Humming 优化部署指南](guide/local-deploy/ling-3.0-flash/dgx-spark-sglang-ling3-w4a8-humming.ipynb) |
-| Ling-3.0-flash | 单台 NVIDIA DGX Spark | SGLang | MXFP4 (W4A16 / W4A8) | [文档: SGLang MXFP4 部署指南](guide/local-deploy/ling-3.0-flash/dgx-spark-sglang-ling-3-flash-mxfp4.ipynb) |
-| Ling-3.0-flash | 单台 NVIDIA DGX Spark | SGLang | INT4 (W4A16) | [文档: SGLang INT4 部署指南](guide/local-deploy/ling-3.0-flash/dgx-spark-sglang-ling-3-flash-int4.ipynb) |
-| Ling-3.0-flash | 单台 NVIDIA DGX Spark | vLLM | FP4 (MXFP4) | [文档: vLLM FP4 部署指南](guide/local-deploy/ling-3.0-flash/dgx-spark-vllm-ling-3-flash-fp4.ipynb) |
-| Ling-3.0-flash | 单台 NVIDIA DGX Spark | vLLM | INT4 (W4A16) | [文档: vLLM INT4 部署指南](guide/local-deploy/ling-3.0-flash/dgx-spark-vllm-ling-3-flash-int4.ipynb) |
-| Ling-3.0-flash | 单台 NVIDIA DGX Spark | llama.cpp | GGUF (Q6_K / Q4_K) | [文档: llama.cpp GGUF 部署指南](guide/local-deploy/ling-3.0-flash/dgx-spark-llamacpp-ling-3-flash-q4-gguf.ipynb) |
+| 模型 | 设备                  | 框架 | 量化               | 链接                                                                                                                           |
+| :--- |:----------------------| :--- |:-------------------|:-------------------------------------------------------------------------------------------------------------------------------|
+| Ling-3.0-flash | 单台 NVIDIA DGX Spark | SGLang | MXFP4(速度优化)    | [文档: SGLang MXFP4 Humming 优化部署指南](guide/local-deploy/ling-3.0-flash/dgx-spark-sglang-ling-3-flash-mxfp4-humming.ipynb) |
+| Ling-3.0-flash | 单台 NVIDIA DGX Spark | SGLang | MXFP4              | [文档: SGLang MXFP4 部署指南](guide/local-deploy/ling-3.0-flash/dgx-spark-sglang-ling-3-flash-mxfp4.ipynb)                     |
+| Ling-3.0-flash | 单台 NVIDIA DGX Spark | SGLang | INT4               | [文档: SGLang INT4 部署指南](guide/local-deploy/ling-3.0-flash/dgx-spark-sglang-ling-3-flash-int4.ipynb)                       |
+| Ling-3.0-flash | 单台 NVIDIA DGX Spark | vLLM | FP4                | [文档: vLLM FP4 部署指南](guide/local-deploy/ling-3.0-flash/dgx-spark-vllm-ling-3-flash-fp4.ipynb)                             |
+| Ling-3.0-flash | 单台 NVIDIA DGX Spark | vLLM | INT4               | [文档: vLLM INT4 部署指南](guide/local-deploy/ling-3.0-flash/dgx-spark-vllm-ling-3-flash-int4.ipynb)                           |
+| Ling-3.0-flash | 单台 NVIDIA DGX Spark | llama.cpp | GGUF (Q6_K / Q4_K) | [文档: llama.cpp GGUF 部署指南](guide/local-deploy/ling-3.0-flash/dgx-spark-llamacpp-ling-3-flash-q4-gguf.ipynb)               |
 
 #### Ling-3.0-tiny
 
@@ -55,4 +55,4 @@
 
 ## 致谢 (Acknowledgements)
 
-- 感谢 Nvidia 团队 [@ly01325](https://github.com/ly01325) 优化和提供 [SGLang Humming 优化部署指南](guide/local-deploy/ling-3.0-flash/dgx-spark-sglang-ling3-w4a8-humming.ipynb)，针对 Grace Blackwell (GB10 / SM121) 硬件实现了 Humming MoE 算子加速、在线 FP8 LM Head 与 MTP 投机解码协同优化。
+- 感谢 Nvidia 团队 [@ly01325](https://github.com/ly01325) 优化和提供 [SGLang Humming 优化部署指南](guide/local-deploy/ling-3.0-flash/dgx-spark-sglang-ling-3-flash-mxfp4-humming.ipynb)，针对 Grace Blackwell (GB10 / SM121) 硬件实现了 Humming MoE 算子加速、在线 FP8 LM Head 与 MTP 投机解码协同优化。
