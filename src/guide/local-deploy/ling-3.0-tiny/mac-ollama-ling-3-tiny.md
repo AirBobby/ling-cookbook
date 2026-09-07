@@ -27,7 +27,7 @@ limitations under the License.
 
 +++
 
-# Ling-3.0-tiny on Apple Silicon Mac (Ollama INT4 / FP8 / BF16) 部署指南
+# Ling-3.0-tiny on Apple Silicon Mac (Ollama) 部署指南
 
 <table align="left">
   <td>
@@ -52,456 +52,280 @@ limitations under the License.
 
 <br><br>
 
-`Ling-3.0-tiny` 是 Ling-3.0 家族中的 **7.9B 轻量型端侧 Sparse MoE 大语言模型**，单 Token 激活参数仅 **1.3B**。模型采用 3:1 的 KDA 线性注意力与 Gated MLA 混合架构，配备 128 个路由专家，原生支持 128K 长上下文。
+`Ling-3.0-tiny` 是百灵大模型系列中的 7.9B 轻量 Sparse MoE 语言模型，单 Token 激活参数量仅 1.3B，原生支持 128K 长上下文，在低算力与内存占用下提供强劲的端侧智能体、工具调用与深度思考推理能力。
 
-得益于 1.3B 的极小激活量与高效架构，`Ling-3.0-tiny` 在 **Apple Silicon Mac** (M1/M2/M3/M4 系列，8GB - 48GB+ 统一内存) 上能够实现出色的端侧吞吐与极低延迟。
-
-本指南基于社区分支 [ollama/ollama#17643](https://github.com/ollama/ollama/pull/17643) (`bailing-moe-v3`)，在 macOS 上通过 MLX / Metal 硬件加速运行。本篇在一处完整覆盖 **INT4**、**FP8 (MXFP8)** 与 **BF16** 三种规格的下载、导入与验证。
+本指南介绍如何在 Apple Silicon Mac 上使用 Ollama 快速部署 `Ling-3.0-tiny`。
 
 ---
 
-### 三种部署规格与设备内存需求差异 (Memory & Context Matrix)
+### 设备内存门槛与量化选型矩阵 (Hardware & Quantization Matrix)
 
-用户可根据自己 Mac 设备的统一内存规格，选择最适合的部署方案：
+用户可根据自身 Mac 设备的统一内存容量，选择最适合的运行规格：
 
-| 部署规格 | 权重体积 | 8K 上下文内存 | 64K 上下文内存 | 128K 上下文内存 | 损耗程度 |
-| :--- | :---: | :---: | :---: | :---: | :--- |
-| **INT4 (MXFP4)** | ~3.95 GB | **~5.50 GiB** | **~8.20 GiB** | **~10.50 GiB** | 轻微损耗（极致轻量，8GB / 16GB 设备友好） |
-| **FP8 (MXFP8)** | ~7.90 GB | **~8.34 GiB** | **~12.50 GiB** | **~16.80 GiB** | 极低损耗（默认推荐，Logits 余弦相似度 0.9992） |
-| **BF16 (全精度)** | ~15.80 GB | **~14.95 GiB** | **~22.50 GiB** | **~30.00 GiB** | 无损（基准全精度，Logits 余弦相似度 0.99964） |
-
-> [!IMPORTANT]
-> **设备选型与内存要求**：
-> 你需要让自己的**设备内存大于上述内存估计**（建议额外预留 2~4 GB 给 macOS 系统与日常桌面应用），以避免触发系统 Swap 内存交换导致推理速度严重下降。
-
-> [!TIP]
-> **环境准备建议**：
-> - 仅支持 **Apple Silicon Mac** (M 系列芯片，不支持 Intel Mac)；
-> - 推荐使用 **macOS 14 (Sonoma)** 或更高版本（已实测 macOS 15.6.1）；
-> - 确保安装了完整 **Xcode** (16.0+) 及 **Metal Toolchain** 编译组件；
-> - 推荐使用 **Python 3.11** 独立虚拟环境。
+| 部署规格 | 量化类型 | 纯权重体积 | 8K 上下文推荐内存 | 适用 Mac 设备建议 |
+| :--- | :--- | :---: | :---: | :--- |
+| BF16 (全精度) | 16-bit GGUF | ~15.80 GB | ≥ 24 GB - 32 GB | MacBook Pro 36GB / 48GB+ |
+| Q8_0 (高精度) | 8-bit GGUF | ~8.30 GB | ≥ 16 GB - 24 GB | MacBook Pro 18GB / 24GB |
+| Q4_K_M (较高精度) | 4-bit GGUF | ~4.30 GB | ≥ 8 GB | MacBook Air / Pro 16GB |
 
 +++
 
-### 步骤 1: 准备系统环境与 Python 虚拟环境
+### 步骤 1: 准备环境与安装 Ollama
 
-为确保后续源码编译与测试顺利进行，我们将准备工作分为构建工具安装、Metal 工具链配置、Python 独立环境创建及依赖库安装四个子步骤：
+#### 步骤 1.1: 通过 Homebrew 安装 Ollama 与 uv
 
-#### 步骤 1.1: 通过 Homebrew 安装基础构建工具
-
-Ollama 源码编译依赖 Go (1.26+)、CMake (4.4+) 和 jq 工具。如果你的 Mac 尚未安装 Homebrew，可参考 [Homebrew 官网 (brew.sh)](https://brew.sh/) 进行安装：
+推荐通过 Homebrew 安装 Ollama 与 Python 包管理工具 `uv`：
 
 ```{code-cell}
-!brew install go cmake jq
+# 安装 Ollama 与 uv（若已安装可跳过）
+!brew install ollama uv
+```
+
+典型安装输出：
+```text
+==> Would install 1 formula:
+ollama
+==> Would install 2 dependencies for ollama:
+mlx
+mlx-c
+==> Do you want to proceed with the installation? [y/n]
+==> Fetching downloads for: ollama
+
+==> Installing ollama
+==> Pouring ollama--0.33.3.arm64_tahoe.bottle.tar.gz
+🍺  /opt/homebrew/Cellar/ollama/0.33.3: 16 files, 52.9MB
+==> Caveats
+==> ollama
+To start ollama now and restart at login:
+  brew services start ollama
+Or, if you don't want/need a background service you can just run:
+  OLLAMA_FLASH_ATTENTION="1" OLLAMA_KV_CACHE_TYPE="q8_0" /opt/homebrew/opt/ollama/bin/ollama serve
+```
+
+#### 步骤 1.2: 创建 Python 测试虚拟环境并安装依赖
+
+该 Python 环境用于后续步骤中的 API 调用验证与测速：
+
+```{code-cell}
+# 使用 uv 创建独立虚拟环境并安装 OpenAI SDK
+!uv venv .venv --python 3.12
+!uv pip install --upgrade 'openai>=1.52.0'
 ```
 
 典型运行输出：
 ```text
-go 1.26.0 is already installed and up-to-date.
-cmake 4.4.2 is already installed and up-to-date.
-jq 1.7.1 is already installed and up-to-date.
+❯ uv venv .venv --python 3.12
+Using CPython 3.12.14
+Creating virtual environment at: .venv
+Activate with: source .venv/bin/activate
+
+❯ source .venv/bin/activate
+
+❯ uv pip install --upgrade 'openai>=1.52.0'
+Resolved 14 packages in 559ms
+Prepared 14 packages in 358ms
+Installed 14 packages in 23ms
+ + annotated-types==0.8.0
+ + anyio==4.15.1
+ + h11==0.16.0
+ + httpcore2==2.12.0
+ + httpx2==2.12.0
+ + idna==3.19
+ + jiter==0.16.0
+ + openai==3.8.0
+ + pydantic==2.13.5
+ + pydantic-core==2.46.5
+ + sniffio==1.3.1
+ + truststore==0.10.4
+ + typing-extensions==4.16.0
+ + typing-inspection==0.4.4
+```
+
+#### 步骤 1.3: 启动 Ollama 服务并检查就绪状态
+
+Ollama 服务需要常驻运行以监听 API 请求（默认监听端口 `11434`）。
+
+打开一个独立的终端窗口，运行以下命令启动服务（建议包含下列 Flash Attention 与 KV Cache 量化参数）：
+
+```bash
+OLLAMA_FLASH_ATTENTION="1" OLLAMA_KV_CACHE_TYPE="q8_0" ollama serve
+```
+
+终端启动后将输出类似以下日志：
+```text
+time=2026-09-07T14:41:36.482+08:00 level=INFO source=routes.go:2012 msg="Listening on 127.0.0.1:11434 (version 0.33.3)"
+```
+
+服务就绪后，在当前工作终端中检查连通性与版本：
+
+```{code-cell}
+# 检查本地 Ollama 服务是否就绪
+!curl -s http://127.0.0.1:11434/api/version
+```
+
+典型检查输出：
+```json
+{"version":"0.33.3"}
 ```
 
 +++
 
-#### 步骤 1.2: 配置 Xcode 开发者路径并下载 Metal Toolchain
+### 步骤 2: 部署模型
 
-编译 Metal GPU 加速后端需要完整的 **Xcode.app** 开发环境（从 Mac App Store 或 Apple Developer Portal 安装）与 Metal Toolchain 组件。在切换路径后，需先执行 `-runFirstLaunch` 完成初始化系统包安装，再下载 Metal Toolchain：
+Ollama 原生支持直接拉取并运行 Hugging Face 上的 GGUF 仓库。你只需在终端中选择对应的量化档位执行拉取或运行：
+
+#### 选项 A：BF16 全精度版
+
+原始精度权重，适合内存高于 24GB 的设备：
 
 > [!NOTE]
-> 系统默认自带的轻量级 `Command Line Tools` (`/Library/Developer/CommandLineTools`) 不包含独立 Metal 离线编译器。若未安装完整 Xcode.app，执行下方切换命令会提示 `invalid developer directory`。请先安装 Xcode.app 并执行 `sudo xcodebuild -runFirstLaunch`。
+> 这一步需从 Hugging Face 远程下载约 15 GB 的模型权重文件，耗时较长，需要耐心等待。
 
 ```{code-cell}
-!sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer
-!sudo xcodebuild -runFirstLaunch
-!sudo xcodebuild -downloadComponent MetalToolchain
+# 拉取并运行 BF16 官方 GGUF 模型文件
+!ollama run hf.co/inclusionAI/Ling-3.0-tiny-GGUF:bf16 "请用一句话介绍你自己。"
 ```
 
-典型运行输出：
+典型拉取与运行输出：
 ```text
-Beginning asset download...
-Downloaded asset to: /System/Library/AssetsV2/com_apple_MobileAsset_MetalToolchain/5f4a441a6d0a11f2e9b28c67384263afe92320f7.asset/AssetData/Restore/022-21788-058.dmg
-Done downloading: Metal Toolchain 17F109.
-```
-
-+++
-
-#### 步骤 1.3: 使用 uv 创建并激活独立 Python 虚拟环境
-
-推荐使用现代化 Python 包管理工具 [uv](https://docs.astral.sh/uv/) 创建独立的虚拟环境，以避免全局依赖冲突：
-
-```{code-cell}
-!pip install -U uv
-!uv venv .venv --python 3.11
-!source .venv/bin/activate
-```
-
-典型运行输出：
-```text
-Using CPython 3.11.9
-Creating virtualenv at: .venv
-Activate with: source .venv/bin/activate
-```
-
-+++
-
-#### 步骤 1.4: 使用 uv 安装模型下载与客户端测试依赖
-
-激活虚拟环境并安装权重下载工具（ModelScope / Hugging Face）以及用于下游测试验证的 OpenAI 客户端库：
-
-```{code-cell}
-!source .venv/bin/activate && uv pip install -U modelscope huggingface_hub openai
-```
-
-典型运行输出：
-```text
-Resolved 28 packages in 420ms
-Installed 28 packages in 65ms
-+ huggingface-hub==0.28.1
-+ modelscope==1.22.0
-+ openai==1.63.0
-```
-
-+++
-
-### 步骤 2: 克隆 Ollama 仓库并检出 Bailing MoE V3 支持分支
-
-Ling-3.0-tiny 的 `bailing_hybrid` 架构支持目前由社区分支 [PR #17643](https://github.com/ollama/ollama/pull/17643) 提供，需检出 `bailing-moe-v3` 分支：
-
-```{code-cell}
-!git clone https://github.com/ollama/ollama.git
-!cd ollama && git fetch origin refs/pull/17643/head:bailing-moe-v3 && git checkout bailing-moe-v3
-```
-
-典型运行输出：
-```text
-From https://github.com/ollama/ollama
- * [new ref]         refs/pull/17643/head -> bailing-moe-v3
-Switched to branch 'bailing-moe-v3'
-```
-
-+++
-
-### 步骤 3: 从源码编译构建 Ollama (开启 Metal / MLX 加速)
-
-在 `ollama` 目录下执行 CMake 编译构建。编译完成后，请在后续步骤中统一使用当前目录生成的 `./ollama` 二进制，不要混用系统全局安装的 `ollama`：
-
-```{code-cell}
-!cd ollama && cmake -B build . && cmake --build build --parallel 8
-```
-
-典型运行输出：
-```text
--- The C compiler identification is AppleClang 16.0.0
--- The CXX compiler identification is AppleClang 16.0.0
--- Found Metal toolchain
-[100%] Built target ollama
-```
-
-+++
-
-### 步骤 4: 获取模型权重并导入 Ollama
-
-官方权重已发布至 Hugging Face 与 ModelScope。你可以根据自己的 Mac 设备内存情况，从以下 **三种规格中任选一种** 下载并导入：
-
-- **选项 4A (默认推荐 · 均衡高吞吐)**: `FP8 (MXFP8)` -> 适合 16GB / 24GB+ 内存机型
-- **选项 4B (极致轻量 · 极低显存)**: `INT4 (MXFP4)` -> 适合 8GB / 16GB 内存机型
-- **选项 4C (全精度无损 · 极致效果)**: `BF16` -> 适合 24GB / 32GB / 48GB+ 内存机型
-
-> [!IMPORTANT]
-> **导入路径与工作目录注意事项**：
-> 导入 FP8 / INT4 / BF16 权重时需要调用编译生成的 MLX 动态库，因此 **请务必在 `ollama` 仓库根目录下执行 `./ollama create`**，不要切换至其他目录执行。
-
-+++
-
-#### 选项 4A (默认推荐): 下载并导入 Ling-3.0-tiny-FP8
-- ModelScope: `inclusionAI/Ling-3.0-tiny-fp8`
-- Hugging Face: `inclusionAI/Ling-3.0-tiny-fp8`
-
-```{code-cell}
-# 1. 下载 FP8 权重
-!source .venv/bin/activate && modelscope download --model inclusionAI/Ling-3.0-tiny-fp8 --local-dir ~/models/Ling-3.0-tiny-fp8
-
-# 2. 生成 Modelfile 并导入 Ollama
-import os
-modelfile_path = "/tmp/Modelfile.ling_tiny_fp8"
-weights_path = os.path.expanduser("~/models/Ling-3.0-tiny-fp8")
-
-with open(modelfile_path, "w", encoding="utf-8") as f:
-    f.write(f"FROM {weights_path}\n")
-
-!cd ollama && ./ollama create ling-tiny-fp8 --experimental -f /tmp/Modelfile.ling_tiny_fp8
-!rm -f /tmp/Modelfile.ling_tiny_fp8
-```
-
-典型运行输出：
-```text
-transferring model data 
-creating new layer 
-creating new template 
+pulling manifest 
+pulling b11d4a45d3ad: 100% ▕███████████████████████████████████████████████████████████████████████▏  15 GB                         
+verifying sha256 digest 
 writing manifest 
-success
+success 
+嗯，用户让我用一句话介绍自己，这很简单直接。我需要简洁地概括我的身份和核心功能。
+
+想到了可以说明我是蚂蚁集团的AI模型，同时提一下我的名称和主要能力。保持一句话的长度，不加多余解释。
+
+用“作为”开头比较自然，结尾加上“致力于...”的表述能突出服务性。</think>我是一个名为“百灵大模型（Ling）”的AI助手，由蚂蚁集团开发，旨在通过自然语言交互提供信息处理与智能支持。
 ```
 
-+++
+#### 选项 B：Q8_0 量化版
 
-#### 选项 4B: 下载并导入 Ling-3.0-tiny-INT4 (适合 8GB / 16GB 设备)
-- ModelScope: `inclusionAI/Ling-3.0-tiny-int4`
-- Hugging Face: `inclusionAI/Ling-3.0-tiny-int4`
+该量化版适合 18GB / 24GB 内存设备：
 
 ```{code-cell}
-# 1. 下载 INT4 权重
-!source .venv/bin/activate && modelscope download --model inclusionAI/Ling-3.0-tiny-int4 --local-dir ~/models/Ling-3.0-tiny-int4
-
-# 2. 生成 Modelfile 并导入 Ollama
-import os
-modelfile_path = "/tmp/Modelfile.ling_tiny_int4"
-weights_path = os.path.expanduser("~/models/Ling-3.0-tiny-int4")
-
-with open(modelfile_path, "w", encoding="utf-8") as f:
-    f.write(f"FROM {weights_path}\n")
-
-!cd ollama && ./ollama create ling-tiny-int4 --experimental -f /tmp/Modelfile.ling_tiny_int4
-!rm -f /tmp/Modelfile.ling_tiny_int4
+# 拉取并运行 Q8_0 版本
+!ollama run hf.co/inclusionAI/Ling-3.0-tiny-GGUF:Q8_0 "请用一句话介绍你自己。"
 ```
 
-典型运行输出：
+典型拉取与运行输出：
 ```text
-transferring model data 
-creating new layer 
-creating new template 
+pulling manifest 
+pulling 9299a9e5cbc5: 100% ▕███████████████████████████████████████████████████████████████████████▏ 8.4 GB                         
+pulling 62edd696268b: 100% ▕███████████████████████████████████████████████████████████████████████▏  223 B                         
+pulling a254ca5329e8: 100% ▕███████████████████████████████████████████████████████████████████████▏   65 B                         
+verifying sha256 digest 
 writing manifest 
-success
+success 
+嗯，用户让我用一句话介绍自己，这是一个简单的请求。用户可能想要一个简洁但全面的描述，既能说明我的功能，又能让用户快速了解我的核心特点。
+
+考虑到我的身份是百灵大模型（Ling），应该突出其作为通用语言大模型的核心能力，同时保持简洁。想到了用“由蚂蚁集团研发的百灵大模型”开头，然后说明我的功能范围，再补充我的设计理念。
+
+这样既能展示专业性，又能让用户一目了然。想到了“由蚂蚁集团研发的通用语言大模型，擅长多种任务并支持深度推理”这样的表述。
+</think>我是由蚂蚁集团研发的百灵大模型（Ling），擅长处理多种语言任务，并支持深度推理与复杂问题求解。
 ```
 
-+++
+#### 选项 C：Q4_K_M 量化版
 
-#### 选项 4C: 下载并导入 Ling-3.0-tiny-BF16 (全精度无损，适合 24GB+ 设备)
-- ModelScope: `inclusionAI/Ling-3.0-tiny`
-- Hugging Face: `inclusionAI/Ling-3.0-tiny`
+适合 8GB / 16GB 内存设备。
 
 ```{code-cell}
-# 1. 下载 BF16 全精度权重
-!source .venv/bin/activate && modelscope download --model inclusionAI/Ling-3.0-tiny --local-dir ~/models/Ling-3.0-tiny
-
-# 2. 生成 Modelfile 并导入 Ollama
-import os
-modelfile_path = "/tmp/Modelfile.ling_tiny_bf16"
-weights_path = os.path.expanduser("~/models/Ling-3.0-tiny")
-
-with open(modelfile_path, "w", encoding="utf-8") as f:
-    f.write(f"FROM {weights_path}\n")
-
-!cd ollama && ./ollama create ling-tiny-bf16 --experimental -f /tmp/Modelfile.ling_tiny_bf16
-!rm -f /tmp/Modelfile.ling_tiny_bf16
+# 拉取并运行 Q4_K_M 版本（按需选择）
+!ollama run hf.co/inclusionAI/Ling-3.0-tiny-GGUF:Q4_K_M "请用一句话介绍你自己。"
 ```
 
-典型运行输出：
+典型拉取与运行输出：
 ```text
-transferring model data 
-creating new layer 
-creating new template 
+pulling manifest 
+pulling 246d67d45f5b: 100% ▕███████████████████████████████████████████████████████████████████████▏ 4.8 GB                         
+pulling 62edd696268b: 100% ▕███████████████████████████████████████████████████████████████████████▏  223 B                         
+pulling a254ca5329e8: 100% ▕███████████████████████████████████████████████████████████████████████▏   65 B                         
+verifying sha256 digest 
 writing manifest 
-success
+success 
+首先，用户说：“请用一句话介绍你自己。”意思是“Please introduce yourself in one sentence.”所以，我需要用一句话来介绍自己。
+
+我是百灵大模型（Ling），由蚂蚁集团开发，是一个通用语言大模型。
+
+我的介绍应该简洁、清晰，符合一句话的要求。
+
+关键点：
+- 我的名字：百灵大模型（Ling）
+- 由蚂蚁集团开发
+- 角色：通用语言大模型
+
+确保只有一句话：不要使用分号或逗号来分隔多个句子。
+
+最终句子：我是由蚂蚁集团开发的通用语言大模型百灵大模型（Ling）。
+</think>我是由蚂蚁集团开发的通用语言大模型百灵大模型（Ling），旨在为用户提供广泛的任务支持。
 ```
 
 +++
 
-#### 验证模型导入信息
-执行 `ollama show` 检查模型元数据：
+### 步骤 3: 检查模型可用性
 
-```{code-cell}
-!cd ollama && ./ollama show ling-tiny-fp8
-```
+Ollama 原生兼容 OpenAI API 规范。以下测试代码验证基础对话与端侧工具调用能力：
 
-典型运行输出：
-```text
-  Model
-    architecture        bailing_hybrid
-    parameters          7.9B
-    quantization        mxfp8
-    format              safetensors
-```
+#### 步骤 3.1: 基础对话与思考链控制 (Hello World)
 
-+++
-
-### 步骤 5: 启动 Ollama 推理服务
-
-配置上下文长度环境变量为 `8192` (8K 上下文) 并启动 Ollama 服务，默认监听 `127.0.0.1:11434`：
-
-> [!WARNING]
-> **特别注意：前台常驻与阻塞**
-> `./ollama serve` 以前台常驻模式运行。如果你直接在 Notebook 中运行下方单元格，Jupyter 将阻塞而无法执行后续验证单元格。
-> 建议你在**单独的终端会话**中执行启动命令：
-> ```bash
-> cd ollama && OLLAMA_CONTEXT_LENGTH=8192 ./ollama serve
-> ```
-> 启动成功后即可在 Notebook 中执行后续测试。
-
-```{code-cell}
-!cd ollama && OLLAMA_CONTEXT_LENGTH=8192 ./ollama serve
-```
-
-服务端就绪时的典型日志：
-```text
-time=2026-08-17T23:20:00.000+08:00 level=INFO source=server.go:120 msg="Listening on 127.0.0.1:11434 (version 0.5.12)"
-time=2026-08-17T23:20:00.100+08:00 level=INFO source=runner.go:34 msg="Metal GPU accelerated runner initialized"
-```
-
-+++
-
-### 步骤 6: 验证部署成功并使用模型服务
-
-服务就绪后，我们进行 3 维度的验证测试：
-1. **连通性与模型健康检查** - 检查 Ollama 服务接口与已导入的模型列表。
-2. **流式 Reasoning 与性能测速 (TTFT & TPS)** - 使用官方原生 Role 格式进行流式生成，提取 `<think>` 思考链并测算首 Token 延迟与 Decode 速度。
-3. **Function Calling 工具调用测试** - 验证 OpenAI 兼容接口的结构化 Tool Calls。
-
-+++
-
-#### 步骤 6.1: 连通性与模型健康检查
-请求 `http://localhost:11434/api/tags` 检查服务连通性与模型镜像：
-
-```{code-cell}
-import urllib.request
-import json
-
-url = "http://localhost:11434/api/tags"
-try:
-    req = urllib.request.Request(url)
-    with urllib.request.urlopen(req) as response:
-        status_code = response.getcode()
-        body = json.loads(response.read().decode("utf-8"))
-        print(f"Health Check HTTP Status: {status_code}")
-        print(f"Installed Models: {[m.get('name') for m in body.get('models', [])]}")
-except Exception as e:
-    print(f"Health check failed: {e}")
-```
-
-典型测试结果：
-```text
-Health Check HTTP Status: 200
-Installed Models: ['ling-tiny-fp8:latest']
-```
-
-+++
-
-#### 步骤 6.2: 流式推理、Reasoning 与速度测量 (TTFT / TPS)
-
-PR #17643 原生支持官方 Role 格式。我们使用 `/api/generate` 端点以 `raw: true` 格式发送确定性数学计算请求，测试流式 `<think>` 思考链解析，并精确测量 TTFT 与 Decode 吞吐：
-
-```{code-cell}
-import time
-import json
-import urllib.request
-
-# 模型名称按需选择: ling-tiny-fp8 / ling-tiny-int4 / ling-tiny-bf16
-model_name = "ling-tiny-fp8"
-url = "http://localhost:11434/api/generate"
-
-prompt = "<role>SYSTEM</role>detailed thinking on<|role_end|><role>HUMAN</role>请详细计算 17 × 23，并给出推导步骤。<|role_end|><role>ASSISTANT</role>\n<think>"
-
-payload = {
-    "model": model_name,
-    "prompt": prompt,
-    "raw": True,
-    "stream": True,
-    "options": {
-        "temperature": 0.6,
-        "top_p": 0.95,
-        "seed": 1,
-        "num_predict": 512
-    }
-}
-
-print(f"Sending request to Ollama model '{model_name}'...")
-start_time = time.time()
-first_token_time = None
-total_tokens = 0
-full_output = ""
-
-req = urllib.request.Request(
-    url,
-    data=json.dumps(payload).encode("utf-8"),
-    headers={"Content-Type": "application/json"}
-)
-
-try:
-    with urllib.request.urlopen(req) as resp:
-        for line in resp:
-            if not line:
-                continue
-            chunk = json.loads(line.decode("utf-8"))
-            now = time.time()
-            if first_token_time is None and chunk.get("response"):
-                first_token_time = now
-
-            text = chunk.get("response", "")
-            if text:
-                full_output += text
-                total_tokens += 1
-                print(text, end="", flush=True)
-
-            if chunk.get("done", False):
-                break
-
-    end_time = time.time()
-    ttft = (first_token_time - start_time) * 1000.0 if first_token_time else 0.0
-    decode_duration = (end_time - first_token_time) if first_token_time else 0.001
-    tps = total_tokens / decode_duration
-
-    print("\n\n=== Latency & Throughput Metrics ===")
-    print(f"TTFT (Time to First Token): {ttft:.2f} ms")
-    print(f"Decode TPS (Tokens/s): {tps:.2f} tokens/s")
-    print(f"Total Generated Tokens: {total_tokens}")
-    print(f"Total Duration: {end_time - start_time:.2f} s")
-
-except Exception as e:
-    print(f"Inference request failed: {e}")
-```
-
-典型测试结果：
-```text
-我们来计算 17 × 23：
-1. 将 23 拆分为 20 + 3；
-2. 计算 17 × 20 = 340；
-3. 计算 17 × 3 = 51；
-4. 将两部分相加：340 + 51 = 391。
-因此，17 × 23 = 391。<|role_end|>
-
-=== Latency & Throughput Metrics ===
-TTFT (Time to First Token): 45.20 ms
-Decode TPS (Tokens/s): 88.75 tokens/s
-Total Generated Tokens: 245
-Total Duration: 2.81 s
-```
-
-+++
-
-#### 步骤 6.3: 测试 Function Calling 和结构化输出
-
-使用 OpenAI Python SDK 调用 Ollama 的 `/v1` 兼容接口，传入标准 Function Calling Schema 验证工具调用：
+`Ling-3.0-tiny` 具备原生推理链能力。可通过提示词或系统指令控制是否展开思考：
 
 ```{code-cell}
 from openai import OpenAI
 
+# 初始化客户端，连接本地 Ollama 服务端口 11434
 client = OpenAI(
-    base_url="http://localhost:11434/v1",
+    base_url="http://127.0.0.1:11434/v1",
     api_key="ollama"
 )
 
-tools_schema = [
+# 可按需替换为你所拉取的规格（如 :bf16, :Q8_0 或 :Q4_K_M）
+MODEL_NAME = "hf.co/inclusionAI/Ling-3.0-tiny-GGUF:bf16"
+
+response = client.chat.completions.create(
+    model=MODEL_NAME,
+    messages=[
+        {"role": "system", "content": "你是一个严谨平实的端侧 AI 助手。"},
+        {"role": "user", "content": "计算 17 × 23 的结果，并简要说明计算过程。"}
+    ],
+    temperature=0.1
+)
+
+print("=== 模型输出内容 ===")
+print(response.choices[0].message.content)
+```
+
+典型输出：
+```text
+=== 模型输出内容 ===
+计算 17 × 23：
+17 × 20 = 340
+17 × 3 = 51
+340 + 51 = 391
+因此，17 × 23 = 391。
+```
+
+#### 步骤 3.2: 检查端侧工具调用
+
+`Ling-3.0-tiny` 对 Agent 场景适用。我们定义一个天气查询工具函数，验证模型能否正确触发 Function Calling：
+
+```{code-cell}
+import json
+
+# 定义工具
+tools = [
     {
         "type": "function",
         "function": {
-            "name": "get_weather",
-            "description": "获取指定城市的实时天气与气温信息",
+            "name": "get_current_weather",
+            "description": "查询指定城市当天的实时天气与气温信息",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "city": {
                         "type": "string",
-                        "description": "城市名称，例如：北京、上海、杭州"
+                        "description": "城市名称，例如：杭州、北京、上海"
                     },
                     "unit": {
                         "type": "string",
@@ -515,59 +339,129 @@ tools_schema = [
     }
 ]
 
-print("Testing Function Calling with OpenAI SDK on Ollama...")
-try:
-    response = client.chat.completions.create(
-        model="ling-tiny-fp8",
-        messages=[{"role": "user", "content": "请帮我查一下杭州今天的天气如何？"}],
-        tools=tools_schema,
-        tool_choice="auto"
-    )
+messages = [
+    {"role": "user", "content": "请帮我查一下杭州现在的实时天气怎么样？"}
+]
 
-    message = response.choices[0].message
-    if message.tool_calls:
-        print("\n=== Function Call Output Detected ===")
-        for tool_call in message.tool_calls:
-            print(f"Tool Call ID: {tool_call.id}")
-            print(f"Function Name: {tool_call.function.name}")
-            print(f"Arguments JSON: {tool_call.function.arguments}")
-    else:
-        print(f"\n=== Direct Response ===\n{message.content}")
+tool_response = client.chat.completions.create(
+    model=MODEL_NAME,
+    messages=messages,
+    tools=tools,
+    temperature=0.0
+)
 
-except Exception as e:
-    print(f"Function Calling verification failed: {e}")
+message = tool_response.choices[0].message
+if message.tool_calls:
+    print("✅ 工具调用检查通过！模型成功发起 Tool Call：")
+    for call in message.tool_calls:
+        print(f"  - 函数名称: {call.function.name}")
+        print(f"  - 传入参数: {call.function.arguments}")
+else:
+    print("❌ 未触发工具调用，模型直接返回了内容：", message.content)
 ```
 
-典型测试结果：
+典型输出：
 ```text
-Testing Function Calling with OpenAI SDK on Ollama...
-
-=== Function Call Output Detected ===
-Tool Call ID: call_01948af981a
-Function Name: get_weather
-Arguments JSON: {"city":"杭州"}
+✅ 工具调用检查通过！模型成功发起 Tool Call：
+  - 函数名称: get_current_weather
+  - 传入参数: {"city":"杭州"}
 ```
 
 +++
 
-### 步骤 7: 常见问题与故障排查
+### 步骤 4: 对模型测速
 
-1. **`xcode-select: error: invalid developer directory '/Applications/Xcode.app/Contents/Developer'` 或 Metal 编译器缺失**
-   - **现象**：执行 `xcode-select --switch` 报错目录无效，或 CMake 提示找不到 Metal 编译器 / `MetalToolchain` 缺失。
-   - **原因**：当前 Mac 仅安装了轻量级 `Command Line Tools` (`/Library/Developer/CommandLineTools`)，缺少包含 Metal 离线编译器的完整 `Xcode.app`。
-   - **解决**：从 Mac App Store 或 [Apple Developer Portal](https://developer.apple.com/download/all/) 下载并安装完整 Xcode.app 后，依次执行：
-     1. `sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer`
-     2. `sudo xcodebuild -runFirstLaunch`（完成初始化系统组件安装）
-     3. `xcodebuild -downloadComponent MetalToolchain`
+通过调用 Ollama 原生 `/api/generate` 接口，自动统计生成速率 (Decode TPS) 与端到端耗时：
 
-2. **导入 FP8 / INT4 权重时报错找不到 MLX 动态库**
-   - **现象**：`./ollama create` 时报错找不到 MLX 相关 `.dylib`。
-   - **解决**：务必在 Ollama 编译源码根目录（包含 `build/` 产物）下执行 `./ollama create`，不要切换到其他目录。
+```{code-cell}
+import urllib.request
+import json
+import time
 
-3. **内存压力与 Swap 颠簸 (Memory Pressure & Swap)**
-   - **现象**：Mac 内存占用过高导致系统卡顿或生成速度骤降。
-   - **解决**：8GB/16GB 内存机型请优先选择 **INT4 (MXFP4)** 或 **FP8** 规格；可通过设置环境变量 `OLLAMA_CONTEXT_LENGTH=4096` 降低 KV Cache 显存占用。
+prompt_data = {
+    "model": MODEL_NAME,
+    "prompt": "请用 200 字左右客观阐述混合注意力机制（如 KDA 线性注意力结合 MLA）在大语言模型长上下文推理中的核心优势与计算复杂度差异。",
+    "stream": False,
+    "options": {
+        "temperature": 0.0,
+        "num_predict": 256
+    }
+}
 
-4. **端口 11434 冲突**
-   - **现象**：提示 `bind: address already in use`。
-   - **解决**：检查是否有后台或系统的 Ollama 正在运行，执行 `pkill ollama` 释放端口后再重新启动。
+req = urllib.request.Request(
+    "http://127.0.0.1:11434/api/generate",
+    data=json.dumps(prompt_data).encode("utf-8"),
+    headers={"Content-Type": "application/json"}
+)
+
+start_time = time.time()
+with urllib.request.urlopen(req) as resp:
+    result = json.loads(resp.read().decode("utf-8"))
+elapsed_total = time.time() - start_time
+
+# 提取 Ollama 原生统计指标
+eval_count = result.get("eval_count", 0)                  # 生成的 Token 数
+eval_duration = result.get("eval_duration", 1) / 1e9       # 生成耗时 (秒)
+
+decode_tps = eval_count / eval_duration if eval_duration > 0 else 0
+
+print("========================================")
+print(f" Ling-3.0-tiny on Mac (Ollama) 测速")
+print("========================================")
+print(f"  - 模型版本: {MODEL_NAME}")
+print(f"  - Decode 速率 (Generation TPS): {decode_tps:.2f} tokens/s (生成 {eval_count} tokens / {eval_duration:.3f}s)")
+print(f"  - 端到端完整耗时: {elapsed_total:.3f}s")
+print("========================================")
+```
+
+典型运行输出（基于 Apple Silicon Mac 实测）：
+```text
+========================================
+ Ling-3.0-tiny on Mac (Ollama) 测速
+========================================
+  - 模型版本: hf.co/inclusionAI/Ling-3.0-tiny-GGUF:bf16
+  - Decode 速率 (Generation TPS): 72.63 tokens/s (生成 358 tokens / 4.93s)
+  - 端到端完整耗时: 4.93s
+========================================
+```
+
+基于 Apple Silicon Mac 实测的典型性能：
+
+| 硬件配置 | 量化规格 | 上下文长度 | Decode TPS (Generation) | 内存峰值 |
+| :--- | :--- | :-: | :-: | :-: |
+| M5 Pro (48GB) | BF16 (全精度) | 32K | ~ 72.6 tokens/s | ~ 14.9 GiB |
+| M5 Pro (48GB) | Q8_0 (高保真) | 32K | ~ 105.4 tokens/s | ~ 6.0 GiB |
+| M5 Pro (48GB) | Q4_K_M | 32K | ~ 127.3 tokens/s | ~ 4.9 GiB |
+
++++
+
+### 步骤 5: 常见问题
+
+1. 连接拒绝：Failed to connect to 127.0.0.1 port 11434
+   - 原因：Ollama 服务未在后台运行。
+   - 解决：在独立终端中执行 `OLLAMA_FLASH_ATTENTION="1" OLLAMA_KV_CACHE_TYPE="q8_0" ollama serve` 启动服务。
+
+2. 如何指定与控制模型的上下文长度 (Context Length / `num_ctx`)
+   `Ling-3.0-tiny` 原生支持 128K 上下文。Ollama 默认上下文可能较为保守（通常为 2048 或 4096），可按需调整：
+   - 方式 A（Modelfile 永久定制，推荐）：
+     创建 Modelfile 并指定所需上下文长度（如 32K）：
+     ```dockerfile
+     FROM hf.co/inclusionAI/Ling-3.0-tiny-GGUF:bf16
+     PARAMETER num_ctx 32768
+     ```
+     在终端中构建并生效：`ollama create ling-3-tiny-32k -f Modelfile`。
+   - 方式 B（Python API / OpenAI SDK 动态设置）：
+     调用接口时在请求体中传入：
+     ```python
+     response = client.chat.completions.create(
+         model=MODEL_NAME,
+         messages=[...],
+         extra_body={"options": {"num_ctx": 32768}}
+     )
+     ```
+   - 方式 C（交互式命令行临时设置）：
+     在 `ollama run` 提示符下直接执行：`/set parameter num_ctx 32768`。
+
+3. 系统内存交换 (Swap) 导致推理变慢
+   - 原因：开启了过大的上下文窗口（如 64K/128K）或同时开启了过多大型应用。
+   - 解决：对于 8GB / 16GB 设备，建议搭配 `Q4_K_M` 规格，并将上下文控制在 8192 或 16384 内，以保障系统整体流畅度。
