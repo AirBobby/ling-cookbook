@@ -1,58 +1,68 @@
+<p align="right">
+  <b>English</b> | <a href="README-zh.md">简体中文</a>
+</p>
+
 # Ling Cookbook
 
-> Ling Cookbook provides deployment recipes and practical examples for the Ling model family. Work in progress.
-
-> `inclusionAI/ling-cookbook` 是 Ling 系列大语言模型的部署与开发指南仓库，提供已验证的硬件部署方案和模型的工程特性与使用技巧。当前正在开发中。
+> Ling Cookbook provides deployment recipes and practical engineering examples for the Ling model family. Work in progress.
 
 ---
 
-## 相关资源与社群
+## Resources & Community
 
-- **官方网站**：[ant-ling.com](https://www.ant-ling.com/)
-- **Hugging Face**：[inclusionAI](https://huggingface.co/inclusionAI)
-- **ModelScope**：[inclusionAI](https://www.modelscope.cn/organization/inclusionAI)
-- **GitHub**：[inclusionAI/ling-cookbook](https://github.com/inclusionAI/ling-cookbook)
-- **Discord**：[Ling Community](https://discord.com/invite/GNaQc8WC5T)
-- **X (Twitter)**：[@AntLingAGI](https://x.com/AntLingAGI)
+- **Official Website**: [ant-ling.com](https://www.ant-ling.com/)
+- **Hugging Face**: [inclusionAI](https://huggingface.co/inclusionAI)
+- **ModelScope**: [inclusionAI](https://www.modelscope.cn/organization/inclusionAI)
+- **GitHub**: [inclusionAI/ling-cookbook](https://github.com/inclusionAI/ling-cookbook)
+- **Discord**: [Ling Community](https://discord.com/invite/GNaQc8WC5T)
+- **X (Twitter)**: [@AntLingAGI](https://x.com/AntLingAGI)
 
 ---
 
-## 内容目录
+## Table of Contents
 
-### 本地部署 (`guide/local-deploy/`)
+### Local Deployment (`guide/local-deploy/`)
 
-包含在消费级硬件和设备上部署 Ling 系列模型提供推理服务的示例。
+Recipes for deploying Ling models for local inference across consumer and workstation hardware.
 
 #### Ling-3.0-flash
 
-| 模型 | 设备                  | 框架 | 量化               | 链接                                                                                                                           |
-| :--- |:----------------------| :--- |:-------------------|:-------------------------------------------------------------------------------------------------------------------------------|
-| Ling-3.0-flash | 单台 NVIDIA DGX Spark | SGLang | MXFP4(速度优化)    | [文档: SGLang MXFP4 Humming 优化部署指南](guide/local-deploy/ling-3.0-flash/dgx-spark-sglang-ling-3-flash-mxfp4-humming.ipynb) |
-| Ling-3.0-flash | 单台 NVIDIA DGX Spark | SGLang | MXFP4              | [文档: SGLang MXFP4 部署指南](guide/local-deploy/ling-3.0-flash/dgx-spark-sglang-ling-3-flash-mxfp4.ipynb)                     |
-| Ling-3.0-flash | 单台 NVIDIA DGX Spark | SGLang | INT4               | [文档: SGLang INT4 部署指南](guide/local-deploy/ling-3.0-flash/dgx-spark-sglang-ling-3-flash-int4.ipynb)                       |
-| Ling-3.0-flash | 单台 NVIDIA DGX Spark | vLLM | FP4                | [文档: vLLM FP4 部署指南](guide/local-deploy/ling-3.0-flash/dgx-spark-vllm-ling-3-flash-fp4.ipynb)                             |
-| Ling-3.0-flash | 单台 NVIDIA DGX Spark | vLLM | INT4               | [文档: vLLM INT4 部署指南](guide/local-deploy/ling-3.0-flash/dgx-spark-vllm-ling-3-flash-int4.ipynb)                           |
-| Ling-3.0-flash | 单台 NVIDIA DGX Spark | llama.cpp | GGUF (Q6_K / Q4_K) | [文档: llama.cpp GGUF 部署指南](guide/local-deploy/ling-3.0-flash/dgx-spark-llamacpp-ling-3-flash-q4-gguf.ipynb)               |
+<p align="right">
+  <b>English</b> | <a href="README-zh.md#ling-30-flash">简体中文</a>
+</p>
+
+| Model | Device | Framework | Quant | Info |
+| :--- | :--- | :--- | :--- | :--- |
+| Ling-3.0-flash | Single NVIDIA DGX Spark | SGLang | MXFP4 (Speed Optimized) | [Recipe: SGLang MXFP4 Humming Deployment Guide](guide/local-deploy/ling-3.0-flash/dgx-spark-sglang-ling-3-flash-mxfp4-humming.ipynb) |
+| Ling-3.0-flash | Single NVIDIA DGX Spark | SGLang | MXFP4 | [Recipe: SGLang MXFP4 Deployment Guide](guide/local-deploy/ling-3.0-flash/dgx-spark-sglang-ling-3-flash-mxfp4.ipynb) |
+| Ling-3.0-flash | Single NVIDIA DGX Spark | SGLang | INT4 | [Recipe: SGLang INT4 Deployment Guide](guide/local-deploy/ling-3.0-flash/dgx-spark-sglang-ling-3-flash-int4.ipynb) |
+| Ling-3.0-flash | Single NVIDIA DGX Spark | vLLM | FP4 | [Recipe: vLLM FP4 Deployment Guide](guide/local-deploy/ling-3.0-flash/dgx-spark-vllm-ling-3-flash-fp4.ipynb) |
+| Ling-3.0-flash | Single NVIDIA DGX Spark | vLLM | INT4 | [Recipe: vLLM INT4 Deployment Guide](guide/local-deploy/ling-3.0-flash/dgx-spark-vllm-ling-3-flash-int4.ipynb) |
+| Ling-3.0-flash | Single NVIDIA DGX Spark | llama.cpp | GGUF (Q6_K / Q4_K) | [Recipe: llama.cpp GGUF Deployment Guide](guide/local-deploy/ling-3.0-flash/dgx-spark-llamacpp-ling-3-flash-q4-gguf.ipynb) |
 
 #### Ling-3.0-tiny
 
-| 模型 | 设备                  | 框架 | 量化 | 链接 |
-| :--- |:----------------------| :--- | :--- | :--- |
-| Ling-3.0-tiny | 单台 NVIDIA DGX Spark | llama.cpp | BF16 (GGUF) | [文档: llama.cpp BF16 部署指南](guide/local-deploy/ling-3.0-tiny/dgx-spark-llamacpp-ling-3-tiny-bf16-gguf.ipynb) |
-| Ling-3.0-tiny | 单台 NVIDIA DGX Spark | SGLang | BF16 | [文档: SGLang BF16 部署指南](guide/local-deploy/ling-3.0-tiny/dgx-spark-sglang-ling-3-tiny-bf16.ipynb) |
-| Ling-3.0-tiny | 单台 NVIDIA DGX Spark | vLLM | BF16 | [文档: vLLM BF16 部署指南](guide/local-deploy/ling-3.0-tiny/dgx-spark-vllm-ling-3-tiny-bf16.ipynb) |
-| Ling-3.0-tiny | Apple Silicon Mac | Ollama | INT4 / FP8 / BF16 | [文档: Ollama 端侧部署指南](guide/local-deploy/ling-3.0-tiny/mac-ollama-ling-3-tiny.ipynb) |
+<p align="right">
+  <b>English</b> | <a href="README-zh.md#ling-30-tiny">简体中文</a>
+</p>
+
+| Model | Device | Framework | Quant | Info |
+| :--- | :--- | :--- | :--- | :--- |
+| Ling-3.0-tiny | Single NVIDIA DGX Spark | llama.cpp | BF16 (GGUF) | [Recipe: llama.cpp BF16 Deployment Guide](guide/local-deploy/ling-3.0-tiny/dgx-spark-llamacpp-ling-3-tiny-bf16-gguf.ipynb) |
+| Ling-3.0-tiny | Single NVIDIA DGX Spark | SGLang | BF16 | [Recipe: SGLang BF16 Deployment Guide](guide/local-deploy/ling-3.0-tiny/dgx-spark-sglang-ling-3-tiny-bf16.ipynb) |
+| Ling-3.0-tiny | Single NVIDIA DGX Spark | vLLM | BF16 | [Recipe: vLLM BF16 Deployment Guide](guide/local-deploy/ling-3.0-tiny/dgx-spark-vllm-ling-3-tiny-bf16.ipynb) |
+| Ling-3.0-tiny | Apple Silicon Mac | Ollama | INT4 / FP8 / BF16 | [Recipe: Ollama On-Device Deployment Guide](guide/local-deploy/ling-3.0-tiny/mac-ollama-ling-3-tiny.ipynb) |
 
 ---
 
-## 构建文档
+## Building Documentation
 
-本项目用 jupytext 维护所有 Jupyter Notebook。所有部署指南及用例源码维护在 `src/<folder>` 中；由 `scripts/compile_notebooks.py` 构建到 `<folder>` 目录。 
+This project uses Jupytext to maintain all Jupyter Notebooks. All deployment guides and examples are authored in `src/` (MyST Markdown) and compiled to their delivery destinations via `scripts/compile_notebooks.py` (`*-zh.md` to `*-zh.ipynb`, `*.md` to `*.ipynb`).
 
-修改 `src/` 下的内容后，运行 `python3 scripts/compile_notebooks.py` 即可完成文档构建。不应该直接编辑 Jupyter Notebook 文件。
+After editing files under `src/`, run `python3 scripts/compile_notebooks.py` to compile the notebooks. Direct manual edits to `.ipynb` files are prohibited.
 
 ---
 
-## 致谢 (Acknowledgements)
+## Acknowledgements
 
-- 感谢 Nvidia 团队 [@ly01325](https://github.com/ly01325) 优化和提供 [SGLang Humming 优化部署指南](guide/local-deploy/ling-3.0-flash/dgx-spark-sglang-ling-3-flash-mxfp4-humming.ipynb)，针对 Grace Blackwell (GB10 / SM121) 硬件实现了 Humming MoE 算子加速、在线 FP8 LM Head 与 MTP 投机解码协同优化。
+- Special thanks to the NVIDIA team [@ly01325](https://github.com/ly01325) for optimizing and contributing the [SGLang Humming Deployment Guide](guide/local-deploy/ling-3.0-flash/dgx-spark-sglang-ling-3-flash-mxfp4-humming.ipynb), delivering Humming MoE operator acceleration, online FP8 LM Head, and MTP speculative decoding synergy on Grace Blackwell (GB10 / SM121) hardware.
