@@ -11,7 +11,13 @@ kernelspec:
   name: python3
 ---
 
+##### Copyright 2026 Ant Group and NVIDIA Corporation.
+
++++
+
 # Ling-3.0-flash on DGX Spark：原生 W4A8 与 Humming + 在线 FP8 LM Head
+
+> 感谢 Nvidia 团队 [@ly01325](https://github.com/ly01325) 优化和提供本部署指南。
 
 本 Notebook 演示在 NVIDIA DGX Spark（GB10 / SM121）上从源码部署 Ling-3.0-flash MXFP4，
 并对比两套互斥配置：

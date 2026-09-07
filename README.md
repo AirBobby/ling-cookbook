@@ -27,6 +27,7 @@
 
 | 模型 | 设备                  | 框架 | 量化 | 链接 |
 | :--- |:----------------------| :--- | :--- | :--- |
+| Ling-3.0-flash | 单台 NVIDIA DGX Spark | SGLang | W4A8 (Humming + 在线 FP8 LM Head) | [文档: SGLang Humming 优化部署指南](guide/local-deploy/ling-3.0-flash/dgx-spark-sglang-ling3-w4a8-humming.ipynb) |
 | Ling-3.0-flash | 单台 NVIDIA DGX Spark | SGLang | MXFP4 (W4A16 / W4A8) | [文档: SGLang MXFP4 部署指南](guide/local-deploy/ling-3.0-flash/dgx-spark-sglang-ling-3-flash-mxfp4.ipynb) |
 | Ling-3.0-flash | 单台 NVIDIA DGX Spark | SGLang | INT4 (W4A16) | [文档: SGLang INT4 部署指南](guide/local-deploy/ling-3.0-flash/dgx-spark-sglang-ling-3-flash-int4.ipynb) |
 | Ling-3.0-flash | 单台 NVIDIA DGX Spark | vLLM | FP4 (MXFP4) | [文档: vLLM FP4 部署指南](guide/local-deploy/ling-3.0-flash/dgx-spark-vllm-ling-3-flash-fp4.ipynb) |
@@ -49,3 +50,9 @@
 本项目用 jupytext 维护所有 Jupyter Notebook。所有部署指南及用例源码维护在 `src/<folder>` 中；由 `scripts/compile_notebooks.py` 构建到 `<folder>` 目录。 
 
 修改 `src/` 下的内容后，运行 `python3 scripts/compile_notebooks.py` 即可完成文档构建。不应该直接编辑 Jupyter Notebook 文件。
+
+---
+
+## 致谢 (Acknowledgements)
+
+- 感谢 Nvidia 团队 [@ly01325](https://github.com/ly01325) 优化和提供 [SGLang Humming 优化部署指南](guide/local-deploy/ling-3.0-flash/dgx-spark-sglang-ling3-w4a8-humming.ipynb)，针对 Grace Blackwell (GB10 / SM121) 硬件实现了 Humming MoE 算子加速、在线 FP8 LM Head 与 MTP 投机解码协同优化。
